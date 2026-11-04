@@ -1,0 +1,371 @@
+
+Enum "staff_role_enum" {
+  "SUPER_ADMIN"
+  "FINANCE_OFFICER"
+  "OPERATIONS_MANAGER"
+  "GATE_OFFICER"
+}
+
+Enum "attraction_status_enum" {
+  "OPERATIONAL"
+  "MAINTENANCE"
+  "WEATHER_SUSPENDED"
+}
+
+Enum "discount_type_enum" {
+  "PERCENTAGE"
+  "FIXED_AMOUNT"
+}
+
+Enum "order_status_enum" {
+  "PENDING"
+  "PAID"
+  "PARTIALLY_REFUNDED"
+  "REFUNDED"
+  "EXPIRED"
+  "CANCELLED"
+}
+
+Enum "payment_status_enum" {
+  "PENDING"
+  "SUCCESS"
+  "FAILED"
+  "EXPIRED"
+}
+
+Enum "refund_status_enum" {
+  "PENDING"
+  "COMPLETED"
+  "REJECTED"
+}
+
+Enum "ticket_status_enum" {
+  "VALID"
+  "USED"
+  "VOID"
+  "REFUNDED"
+}
+
+Enum "gate_type_enum" {
+  "MAIN_ENTRY"
+  "FAST_TRACK"
+  "VIP_ENTRY"
+  "EXIT"
+}
+
+Enum "scan_result_enum" {
+  "SUCCESS"
+  "ALREADY_USED"
+  "INVALID_DATE"
+  "INVALID_PARK"
+  "VOID_OR_REFUNDED"
+}
+
+Table "customers" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "full_name" VARCHAR(120) [not null]
+  "email" VARCHAR(150) [unique, not null]
+  "phone" VARCHAR(30)
+  "password_hash" VARCHAR(255)
+  "is_email_verified" BOOLEAN [default: false]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "staff_users" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "full_name" VARCHAR(120) [not null]
+  "email" VARCHAR(150) [unique, not null]
+  "password_hash" VARCHAR(255) [not null]
+  "role" staff_role_enum [not null, default: 'GATE_OFFICER']
+  "is_active" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "parks" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "name" VARCHAR(150) [not null]
+  "slug" VARCHAR(170) [unique, not null]
+  "description" TEXT
+  "location_address" TEXT [not null]
+  "open_time" TIME [not null, default: '09:00:00']
+  "close_time" TIME [not null, default: '18:00:00']
+  "default_daily_capacity" INT [not null, default: 10000]
+  "is_active" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "zones" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "park_id" UUID [not null]
+  "name" VARCHAR(100) [not null]
+  "description" TEXT
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "attractions" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "zone_id" UUID [not null]
+  "name" VARCHAR(120) [not null]
+  "description" TEXT
+  "min_height_cm" INT [default: 0]
+  "max_height_cm" INT
+  "status" attraction_status_enum [not null, default: 'OPERATIONAL']
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "park_daily_capacities" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "park_id" UUID [not null]
+  "visit_date" DATE [not null]
+  "max_capacity" INT [not null, check: `max_capacity >= 0`]
+  "booked_count" INT [not null, check: `booked_count >= 0`, default: 0]
+  "locked_count" INT [not null, check: `locked_count >= 0`, default: 0]
+  "is_closed" BOOLEAN [not null, default: false]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+
+  Checks {
+    `(booked_count + locked_count) <= max_capacity` [name: 'chk_park_capacity']
+  }
+
+  Indexes {
+    (park_id, visit_date) [unique, name: "uq_park_date"]
+    (park_id, visit_date, is_closed) [name: "idx_park_cap_lookup"]
+  }
+}
+
+Table "ticket_tiers" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "park_id" UUID [not null]
+  "code" VARCHAR(30) [unique, not null]
+  "name" VARCHAR(100) [not null]
+  "description" TEXT
+  "min_age" INT
+  "max_age" INT
+  "max_height_cm" INT
+  "perks" JSONB [default: `'{}'::jsonb`]
+  "is_active" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "daily_inventories" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "park_daily_capacity_id" UUID [not null]
+  "ticket_tier_id" UUID [not null]
+  "visit_date" DATE [not null]
+  "price" BIGINT [not null, check: `price >= 0`]
+  "total_quota" INT [not null, check: `total_quota >= 0`]
+  "booked_quota" INT [not null, check: `booked_quota >= 0`, default: 0]
+  "locked_quota" INT [not null, check: `locked_quota >= 0`, default: 0]
+  "is_open" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+
+  Checks {
+    `(booked_quota + locked_quota) <= total_quota` [name: 'chk_tier_quota']
+  }
+
+  Indexes {
+    (ticket_tier_id, visit_date) [unique, name: "uq_tier_date"]
+    (ticket_tier_id, visit_date, is_open) [name: "idx_daily_inv_lookup"]
+  }
+}
+
+Table "promotions" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "code" VARCHAR(50) [unique, not null]
+  "discount_type" discount_type_enum [not null, default: 'PERCENTAGE']
+  "discount_value" BIGINT [not null, check: `discount_value > 0`]
+  "min_order_amount" BIGINT [default: 0]
+  "max_discount_amount" BIGINT
+  "max_redemptions" INT [default: 1000]
+  "valid_from" TIMESTAMP [not null]
+  "valid_until" TIMESTAMP [not null]
+  "is_active" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "orders" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "order_code" VARCHAR(35) [unique, not null]
+  "customer_id" UUID
+  "customer_name" VARCHAR(120) [not null]
+  "customer_email" VARCHAR(150) [not null]
+  "customer_phone" VARCHAR(30) [not null]
+  "subtotal_amount" BIGINT [not null, default: 0]
+  "discount_amount" BIGINT [not null, default: 0]
+  "total_amount" BIGINT [not null, default: 0]
+  "status" order_status_enum [not null, default: 'PENDING']
+  "expires_at" TIMESTAMP [not null]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (status, expires_at) [name: "idx_orders_cleanup"]
+  }
+}
+
+Table "order_items" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "order_id" UUID [not null]
+  "daily_inventory_id" UUID [not null]
+  "quantity" INT [not null, check: `quantity > 0`]
+  "unit_price" BIGINT [not null]
+  "subtotal" BIGINT [not null]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "quota_reservations" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "order_id" UUID [not null]
+  "daily_inventory_id" UUID [not null]
+  "park_daily_capacity_id" UUID [not null]
+  "quantity" INT [not null, check: `quantity > 0`]
+  "expires_at" TIMESTAMP [not null]
+  "is_released" BOOLEAN [not null, default: false]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    expires_at [name: "idx_reservations_cleanup"]
+  }
+}
+
+Table "promotion_redemptions" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "promotion_id" UUID [not null]
+  "order_id" UUID [not null]
+  "customer_email" VARCHAR(150) [not null]
+  "discount_applied" BIGINT [not null]
+  "redeemed_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (promotion_id, order_id) [unique, name: "uq_promo_order"]
+  }
+}
+
+Table "payments" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "order_id" UUID [not null]
+  "gateway_provider" VARCHAR(50) [not null]
+  "payment_method" VARCHAR(50) [not null]
+  "transaction_reference" VARCHAR(150)
+  "amount" BIGINT [not null]
+  "status" payment_status_enum [not null, default: 'PENDING']
+  "paid_at" TIMESTAMP
+  "gateway_payload" JSONB [default: `'{}'::jsonb`]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    order_id [unique, name: "uq_successful_payment_per_order"]
+  }
+}
+
+Table "refunds" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "order_id" UUID [not null]
+  "payment_id" UUID [not null]
+  "refund_reference" VARCHAR(150)
+  "amount" BIGINT [not null, check: `amount > 0`]
+  "reason" TEXT [not null]
+  "status" refund_status_enum [not null, default: 'PENDING']
+  "processed_by" UUID
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "issued_tickets" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "order_item_id" UUID [not null]
+  "park_id" UUID [not null]
+  "valid_date" DATE [not null]
+  "ticket_code" VARCHAR(40) [unique, not null]
+  "qr_token" TEXT [unique, not null]
+  "status" ticket_status_enum [not null, default: 'VALID']
+  "first_used_at" TIMESTAMP
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (qr_token, park_id, valid_date, status) [name: "idx_issued_tickets_gate_check"]
+  }
+}
+
+Table "gates" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "park_id" UUID [not null]
+  "gate_name" VARCHAR(100) [not null]
+  "gate_type" gate_type_enum [not null, default: 'MAIN_ENTRY']
+  "is_active" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "updated_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "check_in_logs" {
+  "id" UUID [pk, default: `gen_random_uuid()`]
+  "ticket_id" UUID [not null]
+  "gate_id" UUID [not null]
+  "scanned_by" UUID
+  "scan_time" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+  "scan_result" scan_result_enum [not null]
+  "device_metadata" JSONB [default: `'{}'::jsonb`]
+
+  Indexes {
+    (ticket_id, scan_time) [name: "idx_checkin_audit"]
+  }
+}
+
+Ref:"parks"."id" <? "zones"."park_id" [delete: cascade]
+
+Ref:"zones"."id" <? "attractions"."zone_id" [delete: cascade]
+
+Ref:"parks"."id" <? "park_daily_capacities"."park_id" [delete: cascade]
+
+Ref:"parks"."id" <? "ticket_tiers"."park_id" [delete: cascade]
+
+Ref:"park_daily_capacities"."id" <? "daily_inventories"."park_daily_capacity_id" [delete: cascade]
+
+Ref:"ticket_tiers"."id" <? "daily_inventories"."ticket_tier_id" [delete: cascade]
+
+Ref:"customers"."id" ?<? "orders"."customer_id" [delete: set null]
+
+Ref:"orders"."id" <? "order_items"."order_id" [delete: cascade]
+
+Ref:"daily_inventories"."id" <? "order_items"."daily_inventory_id"
+
+Ref:"orders"."id" <? "quota_reservations"."order_id" [delete: cascade]
+
+Ref:"daily_inventories"."id" <? "quota_reservations"."daily_inventory_id" [delete: cascade]
+
+Ref:"park_daily_capacities"."id" <? "quota_reservations"."park_daily_capacity_id" [delete: cascade]
+
+Ref:"promotions"."id" <? "promotion_redemptions"."promotion_id" [delete: cascade]
+
+Ref:"orders"."id" <? "promotion_redemptions"."order_id" [delete: cascade]
+
+Ref:"orders"."id" <? "payments"."order_id" [delete: cascade]
+
+Ref:"orders"."id" <? "refunds"."order_id" [delete: cascade]
+
+Ref:"payments"."id" <? "refunds"."payment_id"
+
+Ref:"staff_users"."id" ?<? "refunds"."processed_by"
+
+Ref:"order_items"."id" <? "issued_tickets"."order_item_id" [delete: cascade]
+
+Ref:"parks"."id" <? "issued_tickets"."park_id"
+
+Ref:"parks"."id" <? "gates"."park_id" [delete: cascade]
+
+Ref:"issued_tickets"."id" <? "check_in_logs"."ticket_id" [delete: cascade]
+
+Ref:"gates"."id" <? "check_in_logs"."gate_id"
+
+Ref:"staff_users"."id" ?<? "check_in_logs"."scanned_by" [delete: set null]
