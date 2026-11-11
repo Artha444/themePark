@@ -73,6 +73,7 @@ class CheckoutController extends Controller
         }
 
         $total = max(0, $subtotal - $discount);
+        $user = auth()->user();
 
         return Inertia::render('Checkout/Index', [
             'visitDate' => $date,
@@ -81,6 +82,10 @@ class CheckoutController extends Controller
             'discount' => $discount,
             'total' => $total,
             'promoCode' => $promoCode,
+            'currentUser' => $user ? [
+                'name' => $user->name,
+                'email' => $user->email,
+            ] : null,
         ]);
     }
 
@@ -99,8 +104,6 @@ class CheckoutController extends Controller
         ]);
 
         return DB::transaction(function () use ($request) {
-            $park = Park::where('is_active', true)->first();
-
             // Find or create customer
             $customer = Customer::firstOrCreate(
                 ['email' => $request->customer_email],
@@ -115,11 +118,18 @@ class CheckoutController extends Controller
             $subtotal = 0;
             $itemsToCreate = [];
             $totalQuantity = 0;
+            $orderParkId = null;
 
             foreach ($request->items as $itemData) {
-                $inv = DailyInventory::where('id', $itemData['inventory_id'])
+                $inv = DailyInventory::with('ticketTier.park')
+                    ->where('id', $itemData['inventory_id'])
                     ->lockForUpdate()
                     ->firstOrFail();
+
+                // Dapatkan park_id asli dari tiket yang dipesan
+                if (!$orderParkId) {
+                    $orderParkId = $inv->ticketTier->park_id;
+                }
 
                 if (($inv->booked_quota + $itemData['quantity']) > $inv->total_quota) {
                     abort(422, "Kuota tiket {$inv->ticketTier->name} untuk tanggal ini sudah penuh.");
@@ -131,35 +141,50 @@ class CheckoutController extends Controller
 
                 $itemsToCreate[] = [
                     'inventory' => $inv,
+                    'park_id' => $inv->ticketTier->park_id,
                     'quantity' => $itemData['quantity'],
                     'unit_price' => $inv->price,
                     'subtotal' => $itemSubtotal,
                 ];
             }
 
-            // Calculate discount
+            // Fallback park jika belum terdeteksi
+            if (!$orderParkId) {
+                $orderParkId = Park::where('is_active', true)->value('id');
+            }
+
+            // Calculate discount & verifikasi scope promo terhadap park tujuan
             $discount = 0;
             $promo = null;
             if ($request->promo_code) {
                 $promo = Promotion::where('code', strtoupper($request->promo_code))->where('is_active', true)->first();
-                if ($promo && $subtotal >= $promo->min_order_amount) {
-                    if ($promo->discount_type === 'PERCENTAGE') {
-                        $discount = ($subtotal * $promo->discount_value) / 100;
-                        if ($promo->max_discount_amount && $discount > $promo->max_discount_amount) {
-                            $discount = $promo->max_discount_amount;
+                if ($promo) {
+                    // Cek apakah promo spesifik untuk park tertentu
+                    if (!is_null($promo->park_id) && $promo->park_id !== $orderParkId) {
+                        abort(422, "Kupon promo {$promo->code} tidak berlaku untuk destinasi ini.");
+                    }
+
+                    if ($subtotal >= $promo->min_order_amount) {
+                        if ($promo->discount_type === 'PERCENTAGE') {
+                            $discount = ($subtotal * $promo->discount_value) / 100;
+                            if ($promo->max_discount_amount && $discount > $promo->max_discount_amount) {
+                                $discount = $promo->max_discount_amount;
+                            }
+                        } else {
+                            $discount = $promo->discount_value;
                         }
-                    } else {
-                        $discount = $promo->discount_value;
                     }
                 }
             }
 
             $total = max(0, $subtotal - $discount);
-            $orderCode = 'WP-' . strtoupper(Str::random(8));
+            $orderCode = 'VRS-' . strtoupper(Str::random(8));
 
-            // Create Order
+            // Create Order dengan relasi park_id & user_id yang tepat
             $order = Order::create([
                 'order_code' => $orderCode,
+                'park_id' => $orderParkId,
+                'user_id' => auth()->id(), // Terhubung langsung ke user yang login
                 'customer_id' => $customer->id,
                 'customer_name' => $request->customer_name,
                 'customer_email' => $request->customer_email,
@@ -181,9 +206,11 @@ class CheckoutController extends Controller
                 ]);
             }
 
-            // Create OrderItems & IssuedTickets
+            // Create OrderItems, IssuedTickets & QuotaReservations
             foreach ($itemsToCreate as $itemInfo) {
                 $inv = $itemInfo['inventory'];
+                $itemParkId = $itemInfo['park_id'];
+
                 $orderItem = OrderItem::create([
                     'order_id' => $order->id,
                     'daily_inventory_id' => $inv->id,
@@ -195,21 +222,31 @@ class CheckoutController extends Controller
                 // Update inventory booked quota
                 $inv->increment('booked_quota', $itemInfo['quantity']);
 
-                // Create individual tickets
+                // Catat di QuotaReservation agar sinkron dengan ERD
+                QuotaReservation::create([
+                    'order_id' => $order->id,
+                    'daily_inventory_id' => $inv->id,
+                    'park_daily_capacity_id' => $inv->park_daily_capacity_id,
+                    'quantity' => $itemInfo['quantity'],
+                    'expires_at' => Carbon::now()->addHours(2),
+                    'is_released' => false,
+                ]);
+
+                // Create individual tickets dengan park_id yang akurat
                 for ($k = 0; $k < $itemInfo['quantity']; $k++) {
                     IssuedTicket::create([
                         'order_item_id' => $orderItem->id,
-                        'park_id' => $park->id,
+                        'park_id' => $itemParkId,
                         'valid_date' => $request->visit_date,
                         'ticket_code' => 'TKT-' . strtoupper(Str::random(8)),
-                        'qr_token' => 'WONDERPARK-QR-' . strtoupper(Str::random(16)),
+                        'qr_token' => 'VURASI-QR-' . strtoupper(Str::random(16)),
                         'status' => 'VALID',
                     ]);
                 }
             }
 
-            // Update daily park capacity count
-            $cap = ParkDailyCapacity::where('park_id', $park->id)
+            // Update daily park capacity count untuk park tujuan
+            $cap = ParkDailyCapacity::where('park_id', $orderParkId)
                 ->where('visit_date', $request->visit_date)
                 ->first();
             if ($cap) {

@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ShieldCheck, QrCode, CreditCard, Wallet, ArrowLeft, Clock, Ticket } from 'lucide-react';
 
-export default function Checkout({ visitDate, items, subtotal, discount, total, promoCode }) {
+export default function Checkout({ visitDate, items, subtotal, discount, total, promoCode, currentUser }) {
     const [selectedPayment, setSelectedPayment] = useState('QRIS');
 
     const { data, setData, post, processing, errors } = useForm({
-        customer_name: 'Budi Kurniawan',
-        customer_email: 'budi.kurniawan@example.com',
-        customer_phone: '081298765432',
+        customer_name: currentUser?.name || '',
+        customer_email: currentUser?.email || '',
+        customer_phone: '',
         visit_date: visitDate,
         items: items.map(i => ({ inventory_id: i.inventory_id, quantity: i.quantity })),
         payment_method: selectedPayment,

@@ -14,6 +14,7 @@ class Attraction extends Model
         'zone_id',
         'name',
         'description',
+        'image_url',
         'min_height_cm',
         'max_height_cm',
         'status',

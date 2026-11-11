@@ -33,7 +33,19 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $user = Auth::user();
+
+        // Redirect cerdas berdasarkan role user
+        if ($user->isSuperAdmin() || $user->isParkAdmin()) {
+            return redirect()->intended(route('admin.dashboard'));
+        }
+
+        if ($user->isStaff()) {
+            return redirect()->intended(route('scanner.index'));
+        }
+
+        // Pengunjung (CUSTOMER) diarahkan ke riwayat pesanan (atau checkout jika ada intended URL)
+        return redirect()->intended(route('orders.history'));
     }
 
     /**

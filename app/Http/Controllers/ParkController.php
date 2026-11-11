@@ -3,10 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Park;
-use App\Models\ParkDailyCapacity;
-use App\Models\DailyInventory;
 use App\Models\Promotion;
-use App\Models\Attraction;
+use App\Models\DailyInventory;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -16,108 +14,52 @@ class ParkController extends Controller
     public function index(Request $request)
     {
         $today = Carbon::today()->format('Y-m-d');
-        $endDate = Carbon::today()->addDays(14)->format('Y-m-d');
 
-        // 1. Ambil semua Theme Park aktif
-        $parks = Park::where('is_active', true)->get();
-
-        // 2. Tentukan Theme Park yang dipilih
-        $selectedParkId = $request->query('park');
-        $selectedPark = null;
-
-        if ($selectedParkId) {
-            $selectedPark = $parks->firstWhere('id', $selectedParkId) 
-                ?: $parks->firstWhere('slug', $selectedParkId);
-        }
-
-        if (!$selectedPark && $parks->isNotEmpty()) {
-            $selectedPark = $parks->first();
-        }
-
-        $capacities = [];
-        $ticketTiersData = [];
-        $featuredAttractions = [];
-
-        if ($selectedPark) {
-            // 3. Ketersediaan tanggal (park_daily_capacities 14 hari ke depan)
-            $dailyCaps = ParkDailyCapacity::where('park_id', $selectedPark->id)
-                ->whereBetween('visit_date', [$today, $endDate])
-                ->orderBy('visit_date', 'asc')
-                ->get();
-
-            $capacities = $dailyCaps->map(function ($cap) {
-                $remaining = max(0, $cap->max_capacity - $cap->booked_count - $cap->locked_count);
-                $percent = $cap->max_capacity > 0 ? ($remaining / $cap->max_capacity) * 100 : 0;
-                
-                $statusLabel = 'Tersedia';
-                if ($cap->is_closed) {
-                    $statusLabel = 'Tutup';
-                } elseif ($remaining <= 0) {
-                    $statusLabel = 'Habis';
-                } elseif ($percent <= 20) {
-                    $statusLabel = 'Hampir Habis';
-                }
-
-                return [
-                    'id' => $cap->id,
-                    'visit_date' => $cap->visit_date,
-                    'max_capacity' => $cap->max_capacity,
-                    'remaining_quota' => $remaining,
-                    'is_closed' => (bool)$cap->is_closed,
-                    'status_label' => $statusLabel,
-                ];
-            });
-
-            // 4. Pilihan tiket (ticket_tiers) + harga terendah dari daily_inventories mendatang
-            $tiers = $selectedPark->ticketTiers()->where('is_active', true)->get();
-            
-            // Ambil harga terendah per tier di tanggal-tanggal mendatang
-            $minPrices = DailyInventory::whereIn('ticket_tier_id', $tiers->pluck('id'))
-                ->where('visit_date', '>=', $today)
-                ->where('is_open', true)
-                ->groupBy('ticket_tier_id')
-                ->selectRaw('ticket_tier_id, MIN(price) as min_price')
-                ->pluck('min_price', 'ticket_tier_id');
-
-            $ticketTiersData = $tiers->map(function ($tier) use ($minPrices) {
-                $perks = is_array($tier->perks) ? $tier->perks : json_decode($tier->perks ?? '[]', true);
-                return [
-                    'id' => $tier->id,
-                    'code' => $tier->code,
-                    'name' => $tier->name,
-                    'description' => $tier->description,
-                    'min_age' => $tier->min_age,
-                    'max_age' => $tier->max_age,
-                    'max_height_cm' => $tier->max_height_cm,
-                    'perks' => $perks ?: [
-                        'Akses seluruh instalasi & galeri seni',
-                        'Bebas antrean fisik gerbang turnstile',
-                    ],
-                    'starting_price' => $minPrices->get($tier->id) ?? 50000,
-                ];
-            });
-
-            // 5. Wahana unggulan (4-6 attractions dikelompokkan per zones)
-            $featuredAttractions = Attraction::with('zone')
-                ->whereHas('zone', function ($q) use ($selectedPark) {
-                    $q->where('park_id', $selectedPark->id);
-                })
-                ->take(6)
-                ->get()
-                ->map(function ($attr) {
-                    return [
-                        'id' => $attr->id,
-                        'name' => $attr->name,
-                        'description' => $attr->description,
-                        'min_height_cm' => $attr->min_height_cm,
-                        'max_height_cm' => $attr->max_height_cm,
-                        'status' => $attr->status,
-                        'zone_name' => $attr->zone ? $attr->zone->name : 'Zona Utama',
-                    ];
+        // Ambil semua Theme Park / Galeri yang aktif beserta relasi
+        $parks = Park::withCount(['zones', 'ticketTiers'])
+            ->with(['zones.attractions', 'ticketTiers'])
+            ->where('is_active', true)
+            ->get()
+            ->map(function ($park) use ($today) {
+                // Hitung total atraksi/wahana
+                $totalAttractions = $park->zones->sum(function ($zone) {
+                    return $zone->attractions->count();
                 });
-        }
 
-        // 6. Promo aktif (promotions: is_active dan valid date)
+                // Ambil harga terendah dari inventori tiket aktif mendatang
+                $tierIds = $park->ticketTiers->pluck('id');
+                $minPrice = DailyInventory::whereIn('ticket_tier_id', $tierIds)
+                    ->where('visit_date', '>=', $today)
+                    ->where('is_open', true)
+                    ->min('price') ?? 75000;
+
+                // Tentukan kategori & cover image representatif
+                $category = $park->category ?: (str_contains(strtolower($park->name), 'art') || str_contains(strtolower($park->name), 'pavilion') ? 'Art & Light Exhibition' : 'Theme Park & Wahana');
+                $isArt = str_contains(strtolower($category), 'art') || str_contains(strtolower($park->name), 'art');
+                $defaultImageUrl = $isArt
+                    ? 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80'
+                    : 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=800&q=80';
+                $imageUrl = !empty($park->image_url) ? $park->image_url : $defaultImageUrl;
+
+                return [
+                    'id' => $park->id,
+                    'slug' => $park->slug,
+                    'name' => $park->name,
+                    'description' => $park->description,
+                    'location_address' => $park->location_address,
+                    'open_time' => $park->open_time,
+                    'close_time' => $park->close_time,
+                    'default_daily_capacity' => $park->default_daily_capacity,
+                    'category' => $category,
+                    'image_url' => $imageUrl,
+                    'min_price' => $minPrice,
+                    'total_zones' => $park->zones_count,
+                    'total_attractions' => $totalAttractions,
+                    'zones_preview' => $park->zones->pluck('name')->take(3),
+                ];
+            });
+
+        // Ambil promo aktif lintas destinasi
         $now = Carbon::now();
         $promotions = Promotion::where('is_active', true)
             ->where('valid_from', '<=', $now)
@@ -127,11 +69,99 @@ class ParkController extends Controller
 
         return Inertia::render('Welcome', [
             'parks' => $parks,
-            'selectedPark' => $selectedPark,
-            'capacities' => $capacities,
-            'ticketTiers' => $ticketTiersData,
             'promotions' => $promotions,
-            'featuredAttractions' => $featuredAttractions,
+            'today' => $today,
+        ]);
+    }
+
+    public function show($id)
+    {
+        $today = Carbon::today()->format('Y-m-d');
+
+        $park = Park::with(['zones.attractions', 'ticketTiers.dailyInventories' => function ($q) use ($today) {
+                $q->where('visit_date', '>=', $today)
+                  ->where('is_open', true)
+                  ->orderBy('visit_date');
+            }])
+            ->where('is_active', true)
+            ->where(function ($q) use ($id) {
+                $q->where('id', $id)->orWhere('slug', $id);
+            })
+            ->firstOrFail();
+
+        // Kategori
+        $category = $park->category ?: (str_contains(strtolower($park->name), 'art') || str_contains(strtolower($park->name), 'pavilion') ? 'Art & Light Exhibition' : 'Theme Park & Wahana');
+        $isArt = str_contains(strtolower($category), 'art') || str_contains(strtolower($park->name), 'art');
+        $defaultImageUrl = $isArt
+            ? 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&q=80'
+            : 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=1200&q=80';
+        $imageUrl = !empty($park->image_url) ? $park->image_url : $defaultImageUrl;
+
+        // Ambil harga tiket terendah
+        $tierIds = $park->ticketTiers->pluck('id');
+        $minPrice = DailyInventory::whereIn('ticket_tier_id', $tierIds)
+            ->where('visit_date', '>=', $today)
+            ->where('is_open', true)
+            ->min('price') ?? 75000;
+
+        // Promo aktif spesifik park atau global
+        $now = Carbon::now();
+        $promotions = Promotion::where('is_active', true)
+            ->where(function ($q) use ($park) {
+                $q->whereNull('park_id')->orWhere('park_id', $park->id);
+            })
+            ->where('valid_from', '<=', $now)
+            ->where('valid_until', '>=', $now)
+            ->get();
+
+        return Inertia::render('Parks/Show', [
+            'park' => [
+                'id' => $park->id,
+                'slug' => $park->slug,
+                'name' => $park->name,
+                'description' => $park->description,
+                'image_url' => $imageUrl,
+                'category' => $category,
+                'location_address' => $park->location_address,
+                'open_time' => $park->open_time,
+                'close_time' => $park->close_time,
+                'default_daily_capacity' => $park->default_daily_capacity,
+                'min_price' => $minPrice,
+                'zones' => $park->zones->map(function ($zone) {
+                    return [
+                        'id' => $zone->id,
+                        'name' => $zone->name,
+                        'description' => $zone->description,
+                        'attractions' => $zone->attractions->map(function ($attraction) {
+                            return [
+                                'id' => $attraction->id,
+                                'name' => $attraction->name,
+                                'description' => $attraction->description,
+                                'image_url' => $attraction->image_url,
+                                'min_height_cm' => $attraction->min_height_cm,
+                                'status' => $attraction->status,
+                            ];
+                        }),
+                    ];
+                }),
+                'ticket_tiers' => $park->ticketTiers->where('is_active', true)->values()->map(function ($tier) use ($today) {
+                    $nextInv = $tier->dailyInventories->firstWhere('visit_date', $today)
+                        ?: $tier->dailyInventories->first();
+
+                    return [
+                        'id' => $tier->id,
+                        'name' => $tier->name,
+                        'code' => $tier->code,
+                        'description' => $tier->description,
+                        'min_age' => $tier->min_age,
+                        'max_age' => $tier->max_age,
+                        'max_height_cm' => $tier->max_height_cm,
+                        'price' => $nextInv ? $nextInv->price : $tier->initial_price,
+                        'quota' => $nextInv ? $nextInv->total_quota : $tier->initial_quota,
+                    ];
+                }),
+            ],
+            'promotions' => $promotions,
             'today' => $today,
         ]);
     }

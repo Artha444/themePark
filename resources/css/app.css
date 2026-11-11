@@ -60,3 +60,30 @@ html {
     html { scroll-behavior: auto; }
     .plumy .animate-plumy-marquee { animation: none; }
 }
+
+/* ================= VURASI — gallery landing (v7) ================= */
+
+.vurasi ::selection {
+    background: #EA580C;
+    color: #fff;
+}
+
+/* Focus ring tegas, gaya galeri (kontras & selalu terlihat) */
+.vurasi :focus-visible {
+    outline: 2px solid #EA580C;
+    outline-offset: 3px;
+    border-radius: 2px;
+}
+
+/* Tipografi outline untuk satu kata hero — efek "printed poster" */
+.vurasi .stroke-word {
+    color: transparent;
+    -webkit-text-stroke: 2px #18181B;
+    paint-order: stroke;
+}
+
+/* Dot pattern halus untuk latar footer wordmark */
+.vurasi .dots-bg {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+    background-size: 22px 22px;
+}

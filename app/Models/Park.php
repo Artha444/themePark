@@ -12,8 +12,10 @@ class Park extends Model
 
     protected $fillable = [
         'name',
+        'category',
         'slug',
         'description',
+        'image_url',
         'location_address',
         'open_time',
         'close_time',

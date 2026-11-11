@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wahanaku — Tiket MultiPark Seru</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+            },
+            dark: '#0f172a',
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .slider-track { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+    .park-card:hover { transform: translateY(-6px); }
+    .park-card { transition: all 0.3s ease; }
+    .fade-in { animation: fadeIn 0.6s ease forwards; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+  <!-- ========== HEADER ========== -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <a href="#" class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-primary-500 flex items-center justify-center">
+            <i data-lucide="ferris-wheel" class="w-5 h-5 text-white"></i>
+          </div>
+          <span class="font-extrabold text-xl tracking-tight text-dark">Wahanaku</span>
+        </a>
+
+        <!-- Desktop Nav -->
+        <nav class="hidden md:flex items-center gap-8 text-sm font-medium">
+          <a href="#parks" class="hover:text-primary-600 transition">Parks</a>
+          <a href="#tiket" class="hover:text-primary-600 transition">Tiket</a>
+          <a href="#promo" class="hover:text-primary-600 transition">Promo</a>
+          <a href="#bantuan" class="hover:text-primary-600 transition">Bantuan</a>
+        </nav>
+
+        <!-- Right -->
+        <div class="flex items-center gap-3">
+          <button class="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-primary-600">
+            <i data-lucide="search" class="w-4 h-4"></i>
+            Cari
+          </button>
+          <button class="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-primary-600 hover:bg-primary-50 rounded-lg transition">
+            Masuk
+          </button>
+          <button class="px-4 py-2 text-sm font-semibold bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition shadow-sm">
+            Daftar
+          </button>
+          <!-- Mobile menu button -->
+          <button id="menuBtn" class="md:hidden p-2 rounded-lg hover:bg-slate-100">
+            <i data-lucide="menu" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div id="mobileMenu" class="hidden md:hidden border-t border-slate-200 bg-white">
+      <div class="px-4 py-3 space-y-1">
+        <a href="#parks" class="block px-3 py-2 rounded-lg hover:bg-slate-50 font-medium">Parks</a>
+        <a href="#tiket" class="block px-3 py-2 rounded-lg hover:bg-slate-50 font-medium">Tiket</a>
+        <a href="#promo" class="block px-3 py-2 rounded-lg hover:bg-slate-50 font-medium">Promo</a>
+        <a href="#bantuan" class="block px-3 py-2 rounded-lg hover:bg-slate-50 font-medium">Bantuan</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== HERO SLIDER ========== -->
+  <section class="relative overflow-hidden bg-dark">
+    <div class="relative h-[420px] sm:h-[520px] lg:h-[580px]">
+      <!-- Slides -->
+      <div id="slider" class="slider-track flex h-full">
+        <!-- Slide 1 -->
+        <div class="min-w-full h-full relative">
+          <img src="https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=1600&q=80" 
+               alt="Theme Park" class="absolute inset-0 w-full h-full object-cover opacity-70">
+          <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent"></div>
+          <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 flex items-center">
+            <div class="max-w-xl text-white fade-in">
+              <span class="inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-wide uppercase bg-primary-500/90 rounded-full">MultiPark</span>
+              <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight mb-4">
+                Satu Platform,<br>Banyak Park Seru
+              </h1>
+              <p class="text-base sm:text-lg text-white/80 mb-6">
+                Beli tiket Dufan, Atlantis, Sea World & lainnya dalam sekali klik. Mudah, cepat, dan aman.
+              </p>
+              <div class="flex flex-wrap gap-3">
+                <a href="#tiket" class="inline-flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl transition shadow-lg shadow-primary-500/30">
+                  Beli Tiket Sekarang
+                  <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </a>
+                <a href="#parks" class="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur text-white font-semibold rounded-xl transition border border-white/20">
+                  Lihat Semua Park
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 2 -->
+        <div class="min-w-full h-full relative">
+          <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1600&q=80" 
+               alt="Water Park" class="absolute inset-0 w-full h-full object-cover opacity-70">
+          <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent"></div>
+          <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 flex items-center">
+            <div class="max-w-xl text-white">
+              <span class="inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-wide uppercase bg-cyan-500/90 rounded-full">Waterpark</span>
+              <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight mb-4">
+                Segarnya Liburan<br>di Atlantis
+              </h1>
+              <p class="text-base sm:text-lg text-white/80 mb-6">
+                Seluncuran raksasa, wave pool, dan zona anak. Cocok buat sekeluarga.
+              </p>
+              <a href="#tiket" class="inline-flex items-center gap-2 px-6 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition">
+                Cek Tiket Atlantis
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 3 -->
+        <div class="min-w-full h-full relative">
+          <img src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1600&q=80" 
+               alt="Sea World" class="absolute inset-0 w-full h-full object-cover opacity-70">
+          <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent"></div>
+          <div class="relative h-full max-w-7xl mx-auto px-4 sm:px-6 flex items-center">
+            <div class="max-w-xl text-white">
+              <span class="inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-wide uppercase bg-blue-500/90 rounded-full">Sea World</span>
+              <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight mb-4">
+                Petualangan Bawah<br>Laut yang Menakjubkan
+              </h1>
+              <p class="text-base sm:text-lg text-white/80 mb-6">
+                Lihat lumba-lumba, hiu, dan ratusan spesies laut lainnya dari dekat.
+              </p>
+              <a href="#tiket" class="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition">
+                Beli Tiket Sea World
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <button id="prevBtn" class="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur flex items-center justify-center text-white transition">
+        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+      </button>
+      <button id="nextBtn" class="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur flex items-center justify-center text-white transition">
+        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Dots -->
+      <div class="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
+        <button class="slider-dot w-2.5 h-2.5 rounded-full bg-white transition" data-index="0"></button>
+        <button class="slider-dot w-2.5 h-2.5 rounded-full bg-white/40 transition" data-index="1"></button>
+        <button class="slider-dot w-2.5 h-2.5 rounded-full bg-white/40 transition" data-index="2"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== QUICK BOOKING ========== -->
+  <section id="tiket" class="relative -mt-8 z-10">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6">
+      <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-5 sm:p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="ticket" class="w-5 h-5 text-primary-500"></i>
+          <h2 class="font-bold text-lg">Pesan Tiket Cepat</h2>
+        </div>
+        <form id="bookingForm" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Pilih Park</label>
+            <select required class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none text-sm bg-white">
+              <option value="">Semua Park</option>
+              <option>Dufan Theme Park</option>
+              <option>Atlantis Waterpark</option>
+              <option>Sea World</option>
+              <option>Samudra</option>
+              <option>Jakarta Bird Land</option>
+              <option>Faunaland</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Tanggal</label>
+            <input type="date" required class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Dewasa</label>
+            <input type="number" min="0" value="2" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">Anak</label>
+            <input type="number" min="0" value="1" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none text-sm">
+          </div>
+          <div class="flex items-end">
+            <button type="submit" class="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl transition flex items-center justify-center gap-2">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              Cari Tiket
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== MULTIPARK ========== -->
+  <section id="parks" class="py-14 sm:py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <div class="flex items-end justify-between mb-8">
+        <div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-dark">Jelajahi Semua Park</h2>
+          <p class="text-slate-500 mt-1">Pilih park favoritmu dan beli tiketnya sekarang</p>
+        </div>
+        <a href="#" class="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-primary-600 hover:text-primary-700">
+          Lihat semua
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <!-- Park 1 -->
+        <article class="park-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-lg">
+          <div class="relative h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=600&q=80" alt="Dufan" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 px-2.5 py-1 text-xs font-semibold bg-primary-500 text-white rounded-lg">Theme Park</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-bold text-lg mb-1">Dufan Theme Park</h3>
+            <div class="flex items-center gap-3 text-sm text-slate-500 mb-3">
+              <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> 10.00–20.00</span>
+              <span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Ancol</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs text-slate-400">Mulai dari</span>
+                <p class="font-bold text-primary-600">Rp 275.000</p>
+              </div>
+              <button class="px-4 py-2 text-sm font-semibold bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition">
+                Beli Tiket
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Park 2 -->
+        <article class="park-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-lg">
+          <div class="relative h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&q=80" alt="Atlantis" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 px-2.5 py-1 text-xs font-semibold bg-cyan-500 text-white rounded-lg">Waterpark</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-bold text-lg mb-1">Atlantis Waterpark</h3>
+            <div class="flex items-center gap-3 text-sm text-slate-500 mb-3">
+              <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> 09.00–18.00</span>
+              <span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Ancol</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs text-slate-400">Mulai dari</span>
+                <p class="font-bold text-primary-600">Rp 110.000</p>
+              </div>
+              <button class="px-4 py-2 text-sm font-semibold bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition">
+                Beli Tiket
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Park 3 -->
+        <article class="park-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-lg">
+          <div class="relative h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600&q=80" alt="Sea World" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 px-2.5 py-1 text-xs font-semibold bg-blue-500 text-white rounded-lg">Aquarium</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-bold text-lg mb-1">Sea World</h3>
+            <div class="flex items-center gap-3 text-sm text-slate-500 mb-3">
+              <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> 09.00–18.00</span>
+              <span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Ancol</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs text-slate-400">Mulai dari</span>
+                <p class="font-bold text-primary-600">Rp 120.000</p>
+              </div>
+              <button class="px-4 py-2 text-sm font-semibold bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition">
+                Beli Tiket
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Park 4 -->
+        <article class="park-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-lg">
+          <div class="relative h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1583212292454-1fe6229603b7?w=600&q=80" alt="Samudra" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 px-2.5 py-1 text-xs font-semibold bg-indigo-500 text-white rounded-lg">Oceanarium</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-bold text-lg mb-1">Samudra</h3>
+            <div class="flex items-center gap-3 text-sm text-slate-500 mb-3">
+              <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> 09.00–17.00</span>
+              <span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Ancol</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs text-slate-400">Mulai dari</span>
+                <p class="font-bold text-primary-600">Rp 110.000</p>
+              </div>
+              <button class="px-4 py-2 text-sm font-semibold bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition">
+                Beli Tiket
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Park 5 -->
+        <article class="park-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-lg">
+          <div class="relative h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=600&q=80" alt="Bird Land" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 px-2.5 py-1 text-xs font-semibold bg-emerald-500 text-white rounded-lg">Bird Park</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-bold text-lg mb-1">Jakarta Bird Land</h3>
+            <div class="flex items-center gap-3 text-sm text-slate-500 mb-3">
+              <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> 09.00–17.00</span>
+              <span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Ancol</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs text-slate-400">Mulai dari</span>
+                <p class="font-bold text-primary-600">Rp 60.000</p>
+              </div>
+              <button class="px-4 py-2 text-sm font-semibold bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition">
+                Beli Tiket
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Park 6 -->
+        <article class="park-card bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-lg">
+          <div class="relative h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=600&q=80" alt="Faunaland" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 px-2.5 py-1 text-xs font-semibold bg-amber-500 text-white rounded-lg">Zoo</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-bold text-lg mb-1">Faunaland</h3>
+            <div class="flex items-center gap-3 text-sm text-slate-500 mb-3">
+              <span class="flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> 09.00–17.00</span>
+              <span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Ancol</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs text-slate-400">Mulai dari</span>
+                <p class="font-bold text-primary-600">Rp 80.000</p>
+              </div>
+              <button class="px-4 py-2 text-sm font-semibold bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition">
+                Beli Tiket
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== PROMO ========== -->
+  <section id="promo" class="py-14 bg-white border-y border-slate-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <div class="flex items-end justify-between mb-8">
+        <div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-dark">Promo Spesial</h2>
+          <p class="text-slate-500 mt-1">Penawaran terbatas yang sayang dilewatkan</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div class="relative rounded-2xl overflow-hidden group">
+          <img src="https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=700&q=80" class="w-full h-56 object-cover group-hover:scale-105 transition duration-500">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
+          <div class="absolute bottom-0 left-0 right-0 p-5 text-white">
+            <span class="inline-block px-2 py-0.5 text-xs font-bold bg-red-500 rounded mb-2">HEMAT 25%</span>
+            <h3 class="font-bold text-lg">Paket Keluarga Dufan</h3>
+            <p class="text-sm text-white/80">2 Dewasa + 2 Anak</p>
+          </div>
+        </div>
+        <div class="relative rounded-2xl overflow-hidden group">
+          <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=700&q=80" class="w-full h-56 object-cover group-hover:scale-105 transition duration-500">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
+          <div class="absolute bottom-0 left-0 right-0 p-5 text-white">
+            <span class="inline-block px-2 py-0.5 text-xs font-bold bg-amber-500 rounded mb-2">WEEKDAY</span>
+            <h3 class="font-bold text-lg">Atlantis Weekday Deal</h3>
+            <p class="text-sm text-white/80">Mulai Rp 89.000</p>
+          </div>
+        </div>
+        <div class="relative rounded-2xl overflow-hidden group">
+          <img src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=700&q=80" class="w-full h-56 object-cover group-hover:scale-105 transition duration-500">
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
+          <div class="absolute bottom-0 left-0 right-0 p-5 text-white">
+            <span class="inline-block px-2 py-0.5 text-xs font-bold bg-blue-500 rounded mb-2">COMBO</span>
+            <h3 class="font-bold text-lg">Sea World + Samudra</h3>
+            <p class="text-sm text-white/80">Hemat Rp 40.000</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== WHY US ========== -->
+  <section class="py-14 sm:py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6">
+      <div class="text-center mb-10">
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-dark">Kenapa Pilih Wahanaku?</h2>
+        <p class="text-slate-500 mt-2">Pengalaman beli tiket park yang lebih mudah dan menyenangkan</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="text-center p-6 rounded-2xl bg-white border border-slate-100">
+          <div class="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary-50 flex items-center justify-center">
+            <i data-lucide="layout-grid" class="w-6 h-6 text-primary-500"></i>
+          </div>
+          <h3 class="font-bold mb-1">MultiPark</h3>
+          <p class="text-sm text-slate-500">Semua park favorit dalam satu platform</p>
+        </div>
+        <div class="text-center p-6 rounded-2xl bg-white border border-slate-100">
+          <div class="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary-50 flex items-center justify-center">
+            <i data-lucide="zap" class="w-6 h-6 text-primary-500"></i>
+          </div>
+          <h3 class="font-bold mb-1">Cepat & Mudah</h3>
+          <p class="text-sm text-slate-500">Pesan dalam hitungan menit, e-ticket langsung masuk</p>
+        </div>
+        <div class="text-center p-6 rounded-2xl bg-white border border-slate-100">
+          <div class="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary-50 flex items-center justify-center">
+            <i data-lucide="shield-check" class="w-6 h-6 text-primary-500"></i>
+          </div>
+          <h3 class="font-bold mb-1">Pembayaran Aman</h3>
+          <p class="text-sm text-slate-500">Berbagai metode pembayaran yang terpercaya</p>
+        </div>
+        <div class="text-center p-6 rounded-2xl bg-white border border-slate-100">
+          <div class="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary-50 flex items-center justify-center">
+            <i data-lucide="headphones" class="w-6 h-6 text-primary-500"></i>
+          </div>
+          <h3 class="font-bold mb-1">Support Lokal</h3>
+          <p class="text-sm text-slate-500">Tim siap membantu kapan saja kamu butuh</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FOOTER ========== -->
+  <footer id="bantuan" class="bg-dark text-slate-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div>
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center">
+              <i data-lucide="ferris-wheel" class="w-4 h-4 text-white"></i>
+            </div>
+            <span class="font-extrabold text-lg text-white">Wahanaku</span>
+          </div>
+          <p class="text-sm text-slate-400 leading-relaxed">
+            Platform pemesanan tiket multipark lokal Indonesia. Seru, mudah, dan terpercaya.
+          </p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-white mb-3">Park</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="hover:text-primary-400 transition">Dufan</a></li>
+            <li><a href="#" class="hover:text-primary-400 transition">Atlantis</a></li>
+            <li><a href="#" class="hover:text-primary-400 transition">Sea World</a></li>
+            <li><a href="#" class="hover:text-primary-400 transition">Samudra</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold text-white mb-3">Bantuan</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="hover:text-primary-400 transition">Cara Pesan</a></li>
+            <li><a href="#" class="hover:text-primary-400 transition">Syarat & Ketentuan</a></li>
+            <li><a href="#" class="hover:text-primary-400 transition">Kebijakan Privasi</a></li>
+            <li><a href="#" class="hover:text-primary-400 transition">Hubungi Kami</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold text-white mb-3">Ikuti Kami</h4>
+          <div class="flex gap-3">
+            <a href="#" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-primary-500 flex items-center justify-center transition">
+              <i data-lucide="instagram" class="w-4 h-4"></i>
+            </a>
+            <a href="#" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-primary-500 flex items-center justify-center transition">
+              <i data-lucide="twitter" class="w-4 h-4"></i>
+            </a>
+            <a href="#" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-primary-500 flex items-center justify-center transition">
+              <i data-lucide="facebook" class="w-4 h-4"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="border-t border-slate-800 mt-10 pt-6 text-center text-sm text-slate-500">
+        © 2026 Wahanaku. Semua hak dilindungi.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 bg-dark text-white text-sm font-medium rounded-xl shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50">
+    Tiket berhasil dicari! (prototipe)
+  </div>
+
+  <script>
+    // Lucide icons
+    lucide.createIcons();
+
+    // Mobile menu
+    const menuBtn = document.getElementById('menuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    menuBtn.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+    });
+
+    // Slider
+    const slider = document.getElementById('slider');
+    const dots = document.querySelectorAll('.slider-dot');
+    const totalSlides = 3;
+    let current = 0;
+    let autoplay;
+
+    function goTo(index) {
+      current = (index + totalSlides) % totalSlides;
+      slider.style.transform = `translateX(-${current * 100}%)`;
+      dots.forEach((d, i) => {
+        d.classList.toggle('bg-white', i === current);
+        d.classList.toggle('bg-white/40', i !== current);
+      });
+    }
+
+    function next() { goTo(current + 1); }
+    function prev() { goTo(current - 1); }
+
+    document.getElementById('nextBtn').addEventListener('click', () => { next(); resetAutoplay(); });
+    document.getElementById('prevBtn').addEventListener('click', () => { prev(); resetAutoplay(); });
+    dots.forEach(d => d.addEventListener('click', () => { goTo(+d.dataset.index); resetAutoplay(); }));
+
+    function startAutoplay() {
+      autoplay = setInterval(next, 5000);
+    }
+    function resetAutoplay() {
+      clearInterval(autoplay);
+      startAutoplay();
+    }
+    startAutoplay();
+
+    // Booking form
+    document.getElementById('bookingForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const toast = document.getElementById('toast');
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+        toast.classList.remove('opacity-100');
+      }, 2500);
+    });
+  </script>
+</body>
+</html>

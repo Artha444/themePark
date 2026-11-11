@@ -68,7 +68,33 @@ class GateScannerController extends Controller
 
         $today = Carbon::today()->format('Y-m-d');
 
-        // Check if ticket is for today
+        // 1. Verifikasi Kecocokan Lokasi / Destinasi (Multi-Park Security)
+        if ($ticket->park_id && $gate->park_id && $ticket->park_id !== $gate->park_id) {
+            $ticketParkName = $ticket->park?->name ?? 'Destinasi Lain';
+            $gateParkName = $gate->park?->name ?? 'Gerbang Ini';
+
+            CheckInLog::create([
+                'ticket_id' => $ticket->id,
+                'gate_id' => $gate->id,
+                'scanned_by' => $request->staff_id,
+                'scan_time' => Carbon::now(),
+                'scan_result' => 'WRONG_PARK',
+                'device_metadata' => [
+                    'ticket_park_id' => $ticket->park_id,
+                    'gate_park_id' => $gate->park_id,
+                ],
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'status' => 'WRONG_PARK',
+                'title' => 'SALAH GERBANG DESTINASI',
+                'message' => "Tiket ini terdaftar untuk '{$ticketParkName}', tidak dapat digunakan di '{$gateParkName}'.",
+                'ticket' => $ticket,
+            ], 422);
+        }
+
+        // 2. Check if ticket is for today
         if ($ticket->valid_date !== $today) {
             CheckInLog::create([
                 'ticket_id' => $ticket->id,

@@ -12,6 +12,8 @@ class Order extends Model
 
     protected $fillable = [
         'order_code',
+        'park_id',
+        'user_id',
         'customer_id',
         'customer_name',
         'customer_email',
@@ -22,6 +24,16 @@ class Order extends Model
         'status',
         'expires_at',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function park()
+    {
+        return $this->belongsTo(Park::class);
+    }
 
     public function customer()
     {
