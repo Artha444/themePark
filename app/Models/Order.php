@@ -22,6 +22,7 @@ class Order extends Model
         'discount_amount',
         'total_amount',
         'status',
+        'snap_token',
         'expires_at',
     ];
 

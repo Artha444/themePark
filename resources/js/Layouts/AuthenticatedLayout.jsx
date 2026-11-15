@@ -2,14 +2,40 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { getNeonAuthClient } from '@/authClient';
 
 export default function AuthenticatedLayout({ header, children }) {
-    const user = usePage().props.auth.user;
+    const { auth, isNeonAuthUser } = usePage().props;
+    const user = auth.user;
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+    const [logoutError, setLogoutError] = useState('');
+
+    const handleLogout = async () => {
+        setLoggingOut(true);
+        setLogoutError('');
+
+        try {
+            if (isNeonAuthUser) {
+                const result = await getNeonAuthClient().signOut();
+
+                if (result.error) {
+                    throw new Error(result.error.message);
+                }
+            }
+
+            router.post(route('logout'));
+        } catch (error) {
+            setLogoutError(
+                error instanceof Error ? error.message : 'Logout gagal dilakukan.',
+            );
+            setLoggingOut(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -66,13 +92,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                         >
                                             Profile
                                         </Dropdown.Link>
-                                        <Dropdown.Link
-                                            href={route('logout')}
-                                            method="post"
-                                            as="button"
+                                        <button
+                                            type="button"
+                                            onClick={handleLogout}
+                                            disabled={loggingOut}
+                                            className="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none disabled:opacity-50"
                                         >
-                                            Log Out
-                                        </Dropdown.Link>
+                                            {loggingOut ? 'Logging Out...' : 'Log Out'}
+                                        </button>
                                     </Dropdown.Content>
                                 </Dropdown>
                             </div>
@@ -150,17 +177,24 @@ export default function AuthenticatedLayout({ header, children }) {
                             <ResponsiveNavLink href={route('profile.edit')}>
                                 Profile
                             </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                method="post"
-                                href={route('logout')}
-                                as="button"
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                disabled={loggingOut}
+                                className="block w-full px-4 py-2 text-start text-base font-medium text-gray-500 transition duration-150 ease-in-out hover:bg-gray-50 hover:text-gray-700 focus:bg-gray-50 focus:text-gray-700 focus:outline-none disabled:opacity-50"
                             >
-                                Log Out
-                            </ResponsiveNavLink>
+                                {loggingOut ? 'Logging Out...' : 'Log Out'}
+                            </button>
                         </div>
                     </div>
                 </div>
             </nav>
+
+            {logoutError && (
+                <p className="bg-rose-50 px-4 py-3 text-center text-sm text-rose-700" role="alert">
+                    {logoutError}
+                </p>
+            )}
 
             {header && (
                 <header className="bg-white shadow">

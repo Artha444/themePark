@@ -46,13 +46,29 @@ export default function OrderHistory({ orders = [] }) {
                 
                 {/* Navbar Header */}
                 <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-orange-600 text-white pt-6 pb-12 px-4 sm:px-6 shadow-md">
-                    <div className="max-w-5xl mx-auto flex items-center justify-between">
+                    <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
                         <Link href="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white text-xs font-bold transition">
                             <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
                         </Link>
-                        <Link href="/tickets" className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition border border-white/20">
-                            + Beli Tiket Baru
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                                href={route('profile.edit')}
+                                className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition border border-white/20"
+                            >
+                                Pengaturan Akun
+                            </Link>
+                            <Link
+                                href={route('logout')}
+                                method="post"
+                                as="button"
+                                className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition border border-white/20"
+                            >
+                                Keluar
+                            </Link>
+                            <Link href="/tickets" className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition border border-white/20">
+                                + Beli Tiket Baru
+                            </Link>
+                        </div>
                     </div>
 
                     <div className="max-w-5xl mx-auto mt-6">

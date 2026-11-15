@@ -34,6 +34,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'isNeonAuthUser' => $request->user()?->neon_auth_user_id !== null,
+            'midtransClientKey' => config('services.midtrans.client_key'),
+            'midtransIsProduction' => config('services.midtrans.is_production', false),
         ];
     }
 }

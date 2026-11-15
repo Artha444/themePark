@@ -5,8 +5,12 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Ticket, ArrowLeft, ArrowRight, ShieldCheck, Mail, Lock } from 'lucide-react';
+import { useState } from 'react';
+import { getNeonAuthClient } from '@/authClient';
 
 export default function Login({ status, canResetPassword }) {
+    const [googleProcessing, setGoogleProcessing] = useState(false);
+    const [googleError, setGoogleError] = useState('');
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
@@ -18,6 +22,25 @@ export default function Login({ status, canResetPassword }) {
         post(route('login'), {
             onFinish: () => reset('password'),
         });
+    };
+
+    const signInWithGoogle = async () => {
+        setGoogleProcessing(true);
+        setGoogleError('');
+
+        try {
+            const result = await getNeonAuthClient().signIn.social({
+                provider: 'google',
+                callbackURL: route('neon.callback'),
+            });
+
+            if (result.error) {
+                throw new Error(result.error.message);
+            }
+        } catch (error) {
+            setGoogleError(error instanceof Error ? error.message : 'Login Google gagal dimulai.');
+            setGoogleProcessing(false);
+        }
     };
 
     return (
@@ -55,6 +78,26 @@ export default function Login({ status, canResetPassword }) {
                             {status}
                         </div>
                     )}
+
+                    <button
+                        type="button"
+                        onClick={signInWithGoogle}
+                        disabled={googleProcessing}
+                        className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition flex items-center justify-center gap-3 disabled:opacity-50"
+                    >
+                        <span className="font-black text-base text-blue-600">G</span>
+                        {googleProcessing ? 'Menghubungkan ke Google...' : 'Masuk dengan Google'}
+                    </button>
+                    {googleError && (
+                        <p role="alert" className="mt-2 text-xs text-rose-600 font-semibold">
+                            {googleError}
+                        </p>
+                    )}
+                    <div className="my-6 flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <span className="h-px flex-1 bg-slate-200" />
+                        atau masuk dengan email
+                        <span className="h-px flex-1 bg-slate-200" />
+                    </div>
 
                     <form onSubmit={submit} className="space-y-4">
                         <div>

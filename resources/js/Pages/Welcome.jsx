@@ -462,13 +462,21 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                         </button>
 
                         {user ? (
-                            <Link
-                                href="/my-orders"
-                                className="hidden h-11 items-center gap-1.5 px-3 text-xs font-bold uppercase tracking-wider text-orange-600 hover:text-orange-700 sm:inline-flex"
-                            >
-                                <IconTicket className="h-4 w-4" />
-                                <span>Tiket Saya ({user.name.split(' ')[0]})</span>
-                            </Link>
+                            <>
+                                <Link
+                                    href="/my-orders"
+                                    className="hidden h-11 items-center gap-1.5 px-3 text-xs font-bold uppercase tracking-wider text-orange-600 hover:text-orange-700 sm:inline-flex"
+                                >
+                                    <IconTicket className="h-4 w-4" />
+                                    <span>Tiket Saya ({user.name.split(' ')[0]})</span>
+                                </Link>
+                                <Link
+                                    href={route('profile.edit')}
+                                    className="hidden h-11 items-center px-3 text-xs font-bold uppercase tracking-wider text-zinc-600 hover:text-orange-600 sm:inline-flex"
+                                >
+                                    Pengaturan Profil
+                                </Link>
+                            </>
                         ) : (
                             <Link
                                 href="/login"
@@ -505,9 +513,14 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                         ))}
                         <div className="flex gap-2 border-t border-zinc-200 pt-3">
                             {user ? (
-                                <Link href="/my-orders" className="flex-1 border-2 border-orange-600 bg-orange-600 py-2.5 text-center text-xs font-bold uppercase tracking-widest text-white">
-                                    Tiket Saya ({user.name.split(' ')[0]})
-                                </Link>
+                                <>
+                                    <Link href="/my-orders" className="flex-1 border-2 border-orange-600 bg-orange-600 py-2.5 text-center text-xs font-bold uppercase tracking-widest text-white">
+                                        Tiket Saya ({user.name.split(' ')[0]})
+                                    </Link>
+                                    <Link href={route('profile.edit')} className="flex-1 border-2 border-zinc-900 py-2.5 text-center text-xs font-bold uppercase tracking-widest text-zinc-900">
+                                        Pengaturan Profil
+                                    </Link>
+                                </>
                             ) : (
                                 <>
                                     <Link href="/login" className="flex-1 border-2 border-zinc-900 py-2.5 text-center text-xs font-bold uppercase tracking-widest text-zinc-900">
@@ -1113,8 +1126,8 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                                         </Link>
                                     </li>
                                     <li>
-                                        <Link href="/admin" className="hover:text-white">
-                                            Admin Portal
+                                        <Link href="/admin/login" className="hover:text-white font-semibold text-orange-400">
+                                            Login Admin &amp; Staf
                                         </Link>
                                     </li>
                                 </ul>

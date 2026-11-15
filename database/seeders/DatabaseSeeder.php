@@ -2,28 +2,27 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\User;
-use App\Models\Park;
-use App\Models\Zone;
 use App\Models\Attraction;
-use App\Models\StaffUser;
-use App\Models\Gate;
-use App\Models\TicketTier;
-use App\Models\ParkDailyCapacity;
-use App\Models\DailyInventory;
-use App\Models\Promotion;
-use App\Models\PromotionRedemption;
+use App\Models\CheckInLog;
 use App\Models\Customer;
+use App\Models\DailyInventory;
+use App\Models\Gate;
+use App\Models\IssuedTicket;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\QuotaReservation;
+use App\Models\Park;
+use App\Models\ParkDailyCapacity;
 use App\Models\Payment;
+use App\Models\Promotion;
+use App\Models\PromotionRedemption;
+use App\Models\QuotaReservation;
 use App\Models\Refund;
-use App\Models\IssuedTicket;
-use App\Models\CheckInLog;
-use Illuminate\Support\Str;
+use App\Models\StaffUser;
+use App\Models\TicketTier;
+use App\Models\User;
+use App\Models\Zone;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -98,7 +97,7 @@ class DatabaseSeeder extends Seeder
         // 4. CREATE GATES
         // ==========================================
         $gateMain1 = Gate::create(['park_id' => $park1->id, 'gate_name' => 'Turnstile Gate Utara (Reguler)', 'gate_type' => 'MAIN_ENTRY', 'is_active' => true]);
-        $gateVIP1  = Gate::create(['park_id' => $park1->id, 'gate_name' => 'Fast Track Gate Barat (VIP)', 'gate_type' => 'VIP_ENTRY', 'is_active' => true]);
+        $gateVIP1 = Gate::create(['park_id' => $park1->id, 'gate_name' => 'Fast Track Gate Barat (VIP)', 'gate_type' => 'VIP_ENTRY', 'is_active' => true]);
         $gateMain2 = Gate::create(['park_id' => $park2->id, 'gate_name' => 'Pavilion Lobby Gate', 'gate_type' => 'MAIN_ENTRY', 'is_active' => true]);
 
         // ==========================================
@@ -139,6 +138,7 @@ class DatabaseSeeder extends Seeder
             'description' => 'Akses penuh ke seluruh wahana reguler dan area pameran (Pengunjung tinggi > 120 cm).',
             'weekday_price' => 150000,
             'weekend_price' => 180000,
+            'holiday_price' => 200000,
             'min_age' => 12,
             'max_age' => 65,
             'perks' => ['Akses All-Day Pass', 'Bebas Masuk Seluruh Zona', 'Voucher Minuman'],
@@ -152,6 +152,7 @@ class DatabaseSeeder extends Seeder
             'description' => 'Khusus anak usia 2-11 tahun atau pelajar dengan kartu pelajar aktif (Tinggi 80 - 120 cm).',
             'weekday_price' => 95000,
             'weekend_price' => 120000,
+            'holiday_price' => 135000,
             'min_age' => 2,
             'max_age' => 11,
             'max_height_cm' => 120,
@@ -166,6 +167,7 @@ class DatabaseSeeder extends Seeder
             'description' => 'Jalur prioritas bebas antrean di semua wahana utama + akses Exclusive VIP Lounge.',
             'weekday_price' => 300000,
             'weekend_price' => 350000,
+            'holiday_price' => 400000,
             'min_age' => 0,
             'perks' => ['Fast Track Express Queue', 'Lounge VIP Gratis Snek & Kopi', 'Voucher Makan Rp 50.000', 'Parkir Khusus'],
             'is_active' => true,
@@ -179,6 +181,7 @@ class DatabaseSeeder extends Seeder
             'description' => 'Akses seluruh instalasi cahaya, galeri kinetik, dan 1x tiket pertunjukan Dome Theater.',
             'weekday_price' => 85000,
             'weekend_price' => 110000,
+            'holiday_price' => 125000,
             'min_age' => 0,
             'perks' => ['Akses Seluruh Galeri Seni', 'Katalog Pameran Digital', 'Sesi Foto Tanpa Batas'],
             'is_active' => true,
@@ -213,8 +216,8 @@ class DatabaseSeeder extends Seeder
                 'visit_date' => $date,
                 'price' => $isWeekend ? 180000 : 150000,
                 'total_quota' => 6000,
-                'booked_quota' => (int)($bookedPark1 * 0.6),
-                'is_open' => !$isClosedDay,
+                'booked_quota' => (int) ($bookedPark1 * 0.6),
+                'is_open' => ! $isClosedDay,
             ]);
 
             // Inventori Park 1 - Child
@@ -224,8 +227,8 @@ class DatabaseSeeder extends Seeder
                 'visit_date' => $date,
                 'price' => $isWeekend ? 120000 : 95000,
                 'total_quota' => 3000,
-                'booked_quota' => (int)($bookedPark1 * 0.3),
-                'is_open' => !$isClosedDay,
+                'booked_quota' => (int) ($bookedPark1 * 0.3),
+                'is_open' => ! $isClosedDay,
             ]);
 
             // Inventori Park 1 - VIP
@@ -235,8 +238,8 @@ class DatabaseSeeder extends Seeder
                 'visit_date' => $date,
                 'price' => $isWeekend ? 350000 : 300000,
                 'total_quota' => 1000,
-                'booked_quota' => (int)($bookedPark1 * 0.1),
-                'is_open' => !$isClosedDay,
+                'booked_quota' => (int) ($bookedPark1 * 0.1),
+                'is_open' => ! $isClosedDay,
             ]);
 
             // Kapasitas & Inventori Park 2

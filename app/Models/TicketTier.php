@@ -17,6 +17,7 @@ class TicketTier extends Model
         'description',
         'weekday_price',
         'weekend_price',
+        'holiday_price',
         'min_age',
         'max_age',
         'max_height_cm',

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -16,6 +15,7 @@ class User extends Authenticatable
         'email',
         'role', // SUPER_ADMIN, PARK_ADMIN
         'assigned_park_id',
+        'neon_auth_user_id',
         'password',
     ];
 

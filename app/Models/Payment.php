@@ -14,9 +14,12 @@ class Payment extends Model
         'order_id',
         'gateway_provider',
         'payment_method',
+        'payment_type',
         'transaction_reference',
+        'transaction_id',
         'amount',
         'status',
+        'fraud_status',
         'paid_at',
         'gateway_payload',
     ];

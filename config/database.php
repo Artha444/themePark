@@ -38,10 +38,10 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
+            'busy_timeout' => 5000,
             'journal_mode' => null,
             'synchronous' => null,
-            'transaction_mode' => 'DEFERRED',
+            'transaction_mode' => 'IMMEDIATE',
         ],
 
         'mysql' => [
@@ -97,6 +97,21 @@ return [
             'prefix_indexes' => true,
             'search_path' => env('DB_SCHEMA', 'public'),
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ],
+
+        'neon' => [
+            'driver' => 'pgsql',
+            'url' => env('NEON_DB_URL'),
+            'host' => env('NEON_DB_HOST', 'ep-lucky-surf-bdn8m9sx.c-8.us-east-2.aws.neon.tech'),
+            'port' => env('NEON_DB_PORT', '5432'),
+            'database' => env('NEON_DB_DATABASE', 'neondb'),
+            'username' => env('NEON_DB_USERNAME', 'neondb_owner'),
+            'password' => env('NEON_DB_PASSWORD', 'npg_eiNvw6DrI7kl'),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'require',
         ],
 
         'sqlsrv' => [

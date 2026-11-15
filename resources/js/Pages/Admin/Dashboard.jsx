@@ -1,9 +1,10 @@
-import { useState, Fragment } from 'react';
+import { useState, Fragment, useMemo } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import {
     DollarSign, Ticket, Users, ArrowLeft, Plus, Calendar,
-    Tag, Wrench, Edit3, Building2, MapPin, Clock, Image as ImageIcon
+    Tag, Wrench, Edit3, Building2, MapPin, Clock, Image as ImageIcon, Sparkles, Trash2,
+    Check, ChevronLeft, ChevronRight, AlertCircle, Info, ShieldAlert
 } from 'lucide-react';
 
 export default function AdminDashboard({
@@ -22,6 +23,7 @@ export default function AdminDashboard({
     promotions = [],
     recentOrders = [],
     liveCheckIns = [],
+    nationalHolidays = [],
 }) {
     const [activeTab, setActiveTab] = useState('schedule');
     const [updatingId, setUpdatingId] = useState(null);
@@ -32,6 +34,15 @@ export default function AdminDashboard({
     const [promoModalOpen, setPromoModalOpen] = useState(false);
     const [newParkModalOpen, setNewParkModalOpen] = useState(false);
     const [editParkModalOpen, setEditParkModalOpen] = useState(false);
+    const [holidayModalOpen, setHolidayModalOpen] = useState(false);
+    const [editingHoliday, setEditingHoliday] = useState(null);
+
+    // Form Holiday
+    const [holidayForm, setHolidayForm] = useState({
+        holiday_date: '',
+        name: '',
+        description: '',
+    });
 
     // Form New Park (Khusus Super Admin)
     const [newParkForm, setNewParkForm] = useState({
@@ -72,9 +83,32 @@ export default function AdminDashboard({
         min_age: '',
         max_age: '',
         max_height_cm: '',
-        initial_price: 100000,
+        weekday_price: 100000,
+        weekend_price: 120000,
+        holiday_price: 135000,
         initial_quota: 2000,
     });
+
+    // Modal Edit Rates Tier
+    const [rateModalOpen, setRateModalOpen] = useState(false);
+    const [editingTier, setEditingTier] = useState(null);
+    const [rateForm, setRateForm] = useState({
+        weekday_price: 0,
+        weekend_price: 0,
+        holiday_price: 0,
+    });
+
+    // Modal Jadwal Khusus
+    const [specialScheduleModalOpen, setSpecialScheduleModalOpen] = useState(false);
+    const [specialScheduleForm, setSpecialScheduleForm] = useState({
+        start_date: today,
+        end_date: today,
+        override_status: 'SPECIAL_CLOSED', // SPECIAL_CLOSED, SPECIAL_OPEN, REGULAR
+        closure_reason: '',
+    });
+
+    // Calendar View Month Navigator (Tampilan Pratinjau Kalender Bulanan)
+    const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
 
     // Form New Promotion
     const [promoForm, setPromoForm] = useState({
@@ -122,7 +156,10 @@ export default function AdminDashboard({
         router.post('/admin/capacity/toggle-closed', {
             park_id: park?.id,
             visit_date: date,
-        }, { preserveScroll: true });
+        }, { 
+            preserveScroll: true,
+            only: ['calendarCapacities', 'metrics', 'park'] 
+        });
     };
 
     const handleCapacityChange = (date, newMax) => {
@@ -195,8 +232,99 @@ export default function AdminDashboard({
             preserveScroll: true,
             onSuccess: () => {
                 setTicketModalOpen(false);
-                setTicketForm({ name: '', description: '', min_age: '', max_age: '', max_height_cm: '', initial_price: 100000, initial_quota: 2000 });
+                setTicketForm({
+                    name: '',
+                    description: '',
+                    min_age: '',
+                    max_age: '',
+                    max_height_cm: '',
+                    weekday_price: 100000,
+                    weekend_price: 120000,
+                    holiday_price: 135000,
+                    initial_quota: 2000
+                });
             },
+        });
+    };
+
+    const openEditRateModal = (tier) => {
+        setEditingTier(tier);
+        setRateForm({
+            weekday_price: tier.weekday_price || 100000,
+            weekend_price: tier.weekend_price || (tier.weekday_price ? Math.round(tier.weekday_price * 1.2) : 120000),
+            holiday_price: tier.holiday_price || (tier.weekend_price ? Math.round(tier.weekend_price * 1.15) : 135000),
+        });
+        setRateModalOpen(true);
+    };
+
+    const submitTierRates = (e) => {
+        e.preventDefault();
+        if (!editingTier) return;
+        router.post(`/admin/tickets/tiers/${editingTier.id}/rates`, rateForm, {
+            preserveScroll: true,
+            onSuccess: () => setRateModalOpen(false),
+        });
+    };
+
+    // 1. Handlers Rutin Mingguan
+    const regularClosedDays = park?.regular_closed_days || [];
+    const handleToggleRegularDay = (dayNum) => {
+        const current = [...regularClosedDays];
+        const idx = current.indexOf(dayNum);
+        if (idx > -1) {
+            current.splice(idx, 1);
+        } else {
+            current.push(dayNum);
+        }
+        current.sort();
+        router.post('/admin/capacity/regular-schedule', {
+            park_id: park?.id,
+            regular_closed_days: current,
+        }, { 
+            preserveScroll: true,
+            only: ['calendarCapacities', 'park'] 
+        });
+    };
+
+    const handleSetRegularPreset = (preset) => {
+        let days = [];
+        if (preset === 'WEEKDAYS') {
+            days = [1, 2, 3, 4, 5]; // Senin - Jumat
+        } else if (preset === 'MONDAY_ONLY') {
+            days = [1]; // Senin saja
+        } else if (preset === 'ALL_OPEN') {
+            days = []; // Buka setiap hari
+        }
+        router.post('/admin/capacity/regular-schedule', {
+            park_id: park?.id,
+            regular_closed_days: days,
+        }, { 
+            preserveScroll: true,
+            only: ['calendarCapacities', 'park'] 
+        });
+    };
+
+    // 2. Handlers Tanggal Khusus
+    const openSpecialScheduleModal = (prefillDate = null) => {
+        const d = prefillDate || today;
+        setSpecialScheduleForm({
+            start_date: d,
+            end_date: d,
+            override_status: 'SPECIAL_CLOSED',
+            closure_reason: '',
+        });
+        setSpecialScheduleModalOpen(true);
+    };
+
+    const submitSpecialSchedule = (e) => {
+        e.preventDefault();
+        router.post('/admin/capacity/special-schedule', {
+            park_id: park?.id,
+            ...specialScheduleForm,
+        }, {
+            preserveScroll: true,
+            only: ['calendarCapacities', 'park'],
+            onSuccess: () => setSpecialScheduleModalOpen(false),
         });
     };
 
@@ -214,6 +342,43 @@ export default function AdminDashboard({
                 setPromoForm({ code: '', scope: 'park', park_id: park?.id || '', discount_type: 'PERCENTAGE', discount_value: 20, min_order_amount: 150000, valid_until: '' });
             },
         });
+    };
+
+    const openAddHolidayModal = () => {
+        setEditingHoliday(null);
+        setHolidayForm({ holiday_date: '', name: '', description: '' });
+        setHolidayModalOpen(true);
+    };
+
+    const openEditHolidayModal = (h) => {
+        setEditingHoliday(h);
+        setHolidayForm({
+            holiday_date: typeof h.holiday_date === 'string' ? h.holiday_date.substring(0, 10) : new Date(h.holiday_date).toISOString().substring(0, 10),
+            name: h.name,
+            description: h.description || '',
+        });
+        setHolidayModalOpen(true);
+    };
+
+    const submitHoliday = (e) => {
+        e.preventDefault();
+        if (editingHoliday) {
+            router.post(`/admin/holidays/${editingHoliday.id}/update`, holidayForm, {
+                preserveScroll: true,
+                onSuccess: () => setHolidayModalOpen(false),
+            });
+        } else {
+            router.post('/admin/holidays', holidayForm, {
+                preserveScroll: true,
+                onSuccess: () => setHolidayModalOpen(false),
+            });
+        }
+    };
+
+    const deleteHoliday = (id) => {
+        if (confirm('Yakin ingin menghapus tanggal libur nasional ini?')) {
+            router.delete(`/admin/holidays/${id}`, { preserveScroll: true });
+        }
     };
 
     const capacityPercent = metrics?.max_capacity > 0
@@ -505,86 +670,347 @@ export default function AdminDashboard({
                             >
                                 Pesanan &amp; Log Scan ({recentOrders.length})
                             </button>
+
+                            <button
+                                onClick={() => setActiveTab('holidays')}
+                                className={`pb-4 text-sm font-bold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+                                    activeTab === 'holidays'
+                                        ? 'border-orange-600 text-orange-600'
+                                        : 'border-transparent text-slate-400 hover:text-slate-700'
+                                }`}
+                            >
+                                <Sparkles className="w-4 h-4 text-rose-500" />
+                                Kalender Libur Nasional ({nationalHolidays.length})
+                            </button>
                         </div>
 
                         {/* =========================================================
-                            TAB 1: ATUR HARI TUTUP & KUOTA HARIAN (14 HARI)
+                            TAB 1: ATUR JADWAL RUTIN, TANGGAL KHUSUS & PRATINJAU KALENDER
                         ========================================================= */}
                         {activeTab === 'schedule' && (
-                            <div>
-                                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                    <div>
-                                        <h3 className="text-lg font-extrabold text-slate-900">
-                                            Pengaturan Jadwal Operasional &amp; Hari Tutup ({park?.name})
-                                        </h3>
-                                        <p className="text-xs text-slate-500 mt-0.5">
-                                            Tutup hari tertentu jika ada pemeliharaan atau atur batas maksimal kuota pengunjung.
-                                        </p>
+                            <div className="space-y-8">
+                                
+                                {/* -------------------------------------------------------------
+                                    SECTION 1: PENGATURAN RUTIN MINGGUAN (HARI TUTUP REGULER)
+                                ------------------------------------------------------------- */}
+                                <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-lg bg-orange-600 text-white font-black text-xs flex items-center justify-center">1</span>
+                                                <h3 className="text-base font-extrabold text-slate-900">
+                                                    Pengaturan Rutin Mingguan (Hari Tutup Reguler)
+                                                </h3>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-1">
+                                                Pilih hari-hari di mana {park?.name} tutup secara permanen setiap minggu (misal: perawatan rutin).
+                                            </p>
+                                        </div>
+
+                                        {/* Shortcut Presets */}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSetRegularPreset('MONDAY_ONLY')}
+                                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition"
+                                            >
+                                                Tutup Tiap Senin
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSetRegularPreset('WEEKDAYS')}
+                                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition"
+                                            >
+                                                Tutup Hari Kerja (Sen-Jum)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSetRegularPreset('ALL_OPEN')}
+                                                className="px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition"
+                                            >
+                                                ✓ Buka Setiap Hari
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs font-semibold">
-                                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Buka</span>
-                                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Tutup Operasional</span>
+
+                                    {/* Deretan Toggle Hari (Senin s/d Minggu) */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 pt-2">
+                                        {[
+                                            { num: 1, name: 'Senin', label: 'Hari Kerja' },
+                                            { num: 2, name: 'Selasa', label: 'Hari Kerja' },
+                                            { num: 3, name: 'Rabu', label: 'Hari Kerja' },
+                                            { num: 4, name: 'Kamis', label: 'Hari Kerja' },
+                                            { num: 5, name: 'Jumat', label: 'Hari Kerja' },
+                                            { num: 6, name: 'Sabtu', label: 'Akhir Pekan' },
+                                            { num: 7, name: 'Minggu', label: 'Akhir Pekan' },
+                                        ].map((day) => {
+                                            const isClosed = regularClosedDays.includes(day.num);
+                                            return (
+                                                <button
+                                                    key={day.num}
+                                                    type="button"
+                                                    onClick={() => handleToggleRegularDay(day.num)}
+                                                    className={`p-3.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                                                        isClosed
+                                                            ? 'border-rose-400 bg-rose-50/90 text-rose-950 shadow-xs ring-2 ring-rose-500/20'
+                                                            : 'border-slate-200 bg-white hover:border-emerald-400 text-slate-800'
+                                                    }`}
+                                                >
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400">{day.label}</span>
+                                                    <span className="text-sm font-extrabold">{day.name}</span>
+                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full mt-1 ${
+                                                        isClosed ? 'bg-rose-600 text-white' : 'bg-emerald-100 text-emerald-800'
+                                                    }`}>
+                                                        {isClosed ? 'TUTUP RUTIN' : 'BUKA'}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {calendarCapacities.map((c) => {
-                                        const isClosed = c.is_closed;
+                                {/* -------------------------------------------------------------
+                                    SECTION 2: PENGATURAN TANGGAL KHUSUS (OVERRIDE / MAINTENANCE)
+                                ------------------------------------------------------------- */}
+                                <div className="p-6 rounded-2xl bg-amber-50/50 border border-amber-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-amber-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                            2
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-extrabold text-amber-950 flex items-center gap-2">
+                                                <span>Pengaturan Tanggal Khusus (Override Libur Insidental / Renovasi)</span>
+                                            </h3>
+                                            <p className="text-xs text-amber-900/80 mt-0.5 max-w-2xl leading-relaxed">
+                                                Menimpa jadwal rutin mingguan untuk periode tanggal tertentu. Anda dapat menetapkan <strong>Tutup Khusus</strong> (misal renovasi/cuaca buruk) atau <strong>Buka Khusus</strong> (misal hari libur nasional di hari yang biasanya tutup).
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => openSpecialScheduleModal()}
+                                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-sm transition flex items-center justify-center gap-2 shrink-0"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span>+ Tetapkan Tanggal Khusus</span>
+                                    </button>
+                                </div>
+
+                                {/* -------------------------------------------------------------
+                                    SECTION 3: TAMPILAN PRATINJAU KALENDER (CALENDAR VIEW)
+                                ------------------------------------------------------------- */}
+                                <div className="space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center">3</span>
+                                                <h3 className="text-base font-extrabold text-slate-900">
+                                                    Pratinjau Kalender Bulanan Interaktif ({park?.name})
+                                                </h3>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-1">
+                                                Klik langsung pada kotak tanggal untuk mengubah status Buka/Tutup seketika.
+                                            </p>
+                                        </div>
+
+                                        {/* Legend Indikator Warna */}
+                                        <div className="flex items-center gap-3 text-xs font-semibold flex-wrap bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                            <span className="flex items-center gap-1.5 text-slate-700">
+                                                <span className="w-3 h-3 rounded-full bg-emerald-500" /> Buka
+                                            </span>
+                                            <span className="flex items-center gap-1.5 text-slate-700">
+                                                <span className="w-3 h-3 rounded-full bg-rose-600" /> Tutup Rutin
+                                            </span>
+                                            <span className="flex items-center gap-1.5 text-slate-700">
+                                                <span className="w-3 h-3 rounded-full bg-amber-500" /> Tutup Khusus
+                                            </span>
+                                            <span className="flex items-center gap-1.5 text-slate-700">
+                                                <span className="w-3 h-3 rounded-full bg-blue-500" /> Buka Khusus
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Monthly Calendar Component */}
+                                    {(() => {
+                                        // Generate 42 days grid for active month view
+                                        const now = new Date();
+                                        const targetDate = new Date(now.getFullYear(), now.getMonth() + calendarMonthOffset, 1);
+                                        const year = targetDate.getFullYear();
+                                        const month = targetDate.getMonth();
+                                        const monthName = targetDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+                                        const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7; // 0=Senin .. 6=Minggu
+                                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                                        const capacityMap = new Map();
+                                        calendarCapacities.forEach((c) => capacityMap.set(c.visit_date, c));
+
+                                        const holidayMap = new Map();
+                                        nationalHolidays.forEach((h) => {
+                                            const dStr = typeof h.holiday_date === 'string' ? h.holiday_date.substring(0, 10) : new Date(h.holiday_date).toISOString().substring(0, 10);
+                                            holidayMap.set(dStr, h.name);
+                                        });
+
+                                        const daysGrid = [];
+                                        for (let i = 0; i < firstDayOfWeek; i++) {
+                                            daysGrid.push({ empty: true, key: `empty-${i}` });
+                                        }
+
+                                        for (let d = 1; d <= daysInMonth; d++) {
+                                            const dayDate = new Date(year, month, d);
+                                            const isoStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                                            const dayOfWeekIso = dayDate.getDay() === 0 ? 7 : dayDate.getDay(); // 1=Senin .. 7=Minggu
+                                            
+                                            // 4. PRIORITAS LOGIKA SISTEM:
+                                            // 1. Cek Tanggal Khusus (override_status)
+                                            // 2. Cek Jadwal Rutin Mingguan
+                                            // 3. Default: Buka
+                                            const cap = capacityMap.get(isoStr);
+                                            const isRegClosed = regularClosedDays.includes(dayOfWeekIso);
+                                            const holidayName = holidayMap.get(isoStr);
+
+                                            let statusType = 'OPEN'; // OPEN, REGULAR_CLOSED, SPECIAL_CLOSED, SPECIAL_OPEN
+                                            let reason = cap?.closure_reason || '';
+
+                                            if (cap && cap.override_status === 'SPECIAL_CLOSED') {
+                                                statusType = 'SPECIAL_CLOSED';
+                                            } else if (cap && cap.override_status === 'SPECIAL_OPEN') {
+                                                statusType = 'SPECIAL_OPEN';
+                                            } else if (isRegClosed || cap?.is_closed) {
+                                                statusType = 'REGULAR_CLOSED';
+                                                reason = reason || 'Jadwal Libur Rutin Mingguan';
+                                            }
+
+                                            daysGrid.push({
+                                                empty: false,
+                                                key: isoStr,
+                                                dateStr: isoStr,
+                                                dayNumber: d,
+                                                dayName: dayDate.toLocaleDateString('id-ID', { weekday: 'short' }),
+                                                statusType,
+                                                reason,
+                                                holidayName,
+                                                capacity: cap,
+                                                isPast: isoStr < today,
+                                            });
+                                        }
+
                                         return (
-                                            <div
-                                                key={c.id || c.visit_date}
-                                                className={`rounded-2xl p-4 border transition-all ${
-                                                    isClosed
-                                                        ? 'bg-rose-50/60 border-rose-300'
-                                                        : 'bg-white border-slate-200'
-                                                }`}
-                                            >
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-xs font-extrabold uppercase text-slate-500">
-                                                        {new Date(c.visit_date).toLocaleDateString('id-ID', { weekday: 'long' })}
-                                                    </span>
-                                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
-                                                        isClosed ? 'bg-rose-600 text-white' : 'bg-emerald-100 text-emerald-800'
-                                                    }`}>
-                                                        {isClosed ? 'TUTUP' : 'BUKA'}
-                                                    </span>
-                                                </div>
-
-                                                <h4 className="font-mono text-xl font-black text-slate-900">
-                                                    {c.visit_date}
-                                                </h4>
-
-                                                {/* Edit Kuota Maksimal */}
-                                                <div className="mt-3 py-2 border-y border-slate-100 flex items-center justify-between text-xs">
-                                                    <span className="text-slate-500">Batas Kuota:</span>
-                                                    <input
-                                                        type="number"
-                                                        defaultValue={c.max_capacity}
-                                                        onBlur={(e) => handleCapacityChange(c.visit_date, e.target.value)}
-                                                        className="w-24 text-right font-bold text-slate-800 border rounded-lg px-2 py-1 text-xs focus:border-orange-500 outline-none"
-                                                    />
-                                                </div>
-
-                                                <div className="mt-2 text-[11px] text-slate-500 flex justify-between">
-                                                    <span>Terpesan: <strong>{c.booked_count}</strong></span>
-                                                    <span>Sisa: <strong>{Math.max(0, c.max_capacity - c.booked_count)}</strong></span>
-                                                </div>
-
-                                                <div className="mt-4 pt-2">
+                                            <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden shadow-xs">
+                                                {/* Month Header Nav */}
+                                                <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
                                                     <button
-                                                        onClick={() => handleToggleClosedDate(c.visit_date)}
-                                                        className={`w-full py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                                                            isClosed
-                                                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                                                                : 'bg-rose-100 hover:bg-rose-200 text-rose-800'
-                                                        }`}
+                                                        type="button"
+                                                        onClick={() => setCalendarMonthOffset(calendarMonthOffset - 1)}
+                                                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
                                                     >
-                                                        {isClosed ? '✓ Buka Kembali Hari Ini' : '✕ Tutup Tempat Hari Ini'}
+                                                        <ChevronLeft className="w-5 h-5" />
                                                     </button>
+                                                    <h4 className="font-extrabold text-base capitalize tracking-wide">
+                                                        {monthName}
+                                                    </h4>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCalendarMonthOffset(calendarMonthOffset + 1)}
+                                                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+                                                    >
+                                                        <ChevronRight className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+
+                                                {/* Day Names Row */}
+                                                <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-bold text-slate-500 uppercase tracking-wider py-2.5">
+                                                    <div>Sen</div>
+                                                    <div>Sel</div>
+                                                    <div>Rab</div>
+                                                    <div>Kam</div>
+                                                    <div>Jum</div>
+                                                    <div className="text-amber-600">Sab</div>
+                                                    <div className="text-rose-600">Min</div>
+                                                </div>
+
+                                                {/* Calendar Days Grid */}
+                                                <div className="grid grid-cols-7 divide-x divide-y divide-slate-100">
+                                                    {daysGrid.map((item) => {
+                                                        if (item.empty) {
+                                                            return <div key={item.key} className="bg-slate-50/40 min-h-[95px]" />;
+                                                        }
+
+                                                        const { dateStr, dayNumber, statusType, reason, holidayName, isPast, capacity: cap } = item;
+                                                        
+                                                        let bgClass = 'bg-white hover:bg-slate-50';
+                                                        let badgeClass = 'bg-emerald-100 text-emerald-800';
+                                                        let labelText = 'Buka';
+
+                                                        if (statusType === 'SPECIAL_CLOSED') {
+                                                            bgClass = 'bg-amber-50/70 hover:bg-amber-50';
+                                                            badgeClass = 'bg-amber-500 text-white font-black';
+                                                            labelText = 'Tutup Khusus';
+                                                        } else if (statusType === 'REGULAR_CLOSED') {
+                                                            bgClass = 'bg-rose-50/70 hover:bg-rose-50';
+                                                            badgeClass = 'bg-rose-600 text-white font-black';
+                                                            labelText = 'Tutup Rutin';
+                                                        } else if (statusType === 'SPECIAL_OPEN') {
+                                                            bgClass = 'bg-blue-50/70 hover:bg-blue-50';
+                                                            badgeClass = 'bg-blue-600 text-white font-black';
+                                                            labelText = 'Buka Khusus';
+                                                        }
+
+                                                        return (
+                                                            <div
+                                                                key={item.key}
+                                                                className={`p-2.5 min-h-[95px] flex flex-col justify-between transition-all ${bgClass} ${isPast ? 'opacity-50' : ''}`}
+                                                            >
+                                                                <div>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className={`text-xs font-extrabold ${dateStr === today ? 'w-5 h-5 rounded-full bg-orange-600 text-white flex items-center justify-center font-black' : 'text-slate-800'}`}>
+                                                                            {dayNumber}
+                                                                        </span>
+                                                                        <span className={`text-[9px] uppercase px-1.5 py-0.2 rounded font-bold ${badgeClass}`}>
+                                                                            {labelText}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {holidayName && (
+                                                                        <div className="mt-1 text-[9px] font-extrabold text-rose-700 bg-rose-100/90 px-1 py-0.5 rounded leading-tight truncate" title={holidayName}>
+                                                                            🎉 {holidayName}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {reason && (
+                                                                        <p className="mt-1 text-[10px] text-slate-500 leading-tight line-clamp-1 italic" title={reason}>
+                                                                            {reason}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Quick Toggle / Override Action */}
+                                                                <div className="mt-2 pt-1 border-t border-slate-100/80 flex items-center justify-between">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleToggleClosedDate(dateStr)}
+                                                                        className="text-[10px] font-bold text-slate-600 hover:text-orange-600 transition underline cursor-pointer"
+                                                                        title="Klik cepat untuk ganti status hari ini"
+                                                                    >
+                                                                        Ubah Status
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => openSpecialScheduleModal(dateStr)}
+                                                                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold"
+                                                                        title="Tetapkan rincian tanggal khusus"
+                                                                    >
+                                                                        Khusus...
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         );
-                                    })}
+                                    })()}
                                 </div>
                             </div>
                         )}
@@ -633,9 +1059,36 @@ export default function AdminDashboard({
                                                     <div>Usia: <strong>{tier.min_age || tier.max_age ? `${tier.min_age || 0} - ${tier.max_age || 'Dewasa'} tahun` : 'Semua Usia'}</strong></div>
                                                     <div>Maks. Tinggi: <strong>{tier.max_height_cm ? `${tier.max_height_cm} cm` : 'Bebas'}</strong></div>
                                                 </div>
+
+                                                {/* Daftar Tarif Reguler, Weekend, & Libur Nasional */}
+                                                <div className="mt-3 p-2.5 rounded-xl bg-white border border-slate-200/80 space-y-1.5 text-xs">
+                                                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                                                        Struktur Tarif Tier:
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-slate-500 text-[11px]">Hari Biasa (Weekday):</span>
+                                                        <strong className="font-bold text-slate-900">Rp {Number(tier.weekday_price || 0).toLocaleString('id-ID')}</strong>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-amber-900">
+                                                        <span className="text-amber-700 text-[11px]">Akhir Pekan (Weekend):</span>
+                                                        <strong className="font-bold">Rp {Number(tier.weekend_price || 0).toLocaleString('id-ID')}</strong>
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-rose-900">
+                                                        <span className="text-rose-700 text-[11px]">Libur Nasional (Holiday):</span>
+                                                        <strong className="font-bold text-rose-600">Rp {Number(tier.holiday_price || 0).toLocaleString('id-ID')}</strong>
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            <div className="pt-3 border-t border-slate-200">
+                                            <div className="pt-3 border-t border-slate-200 space-y-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEditRateModal(tier)}
+                                                    className="w-full py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+                                                >
+                                                    <Edit3 className="w-3.5 h-3.5" />
+                                                    Atur Tarif (Weekday, Weekend &amp; Libur)
+                                                </button>
                                                 <button
                                                     onClick={() => handleToggleTicketTier(tier.id)}
                                                     className={`w-full py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
@@ -999,6 +1452,108 @@ export default function AdminDashboard({
                                 </div>
                             </div>
                         )}
+
+                        {/* =========================================================
+                            TAB 6: KALENDER HARI LIBUR NASIONAL (CRUD)
+                        ========================================================= */}
+                        {activeTab === 'holidays' && (
+                            <div className="space-y-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                                            <span>Kalender Hari Libur Nasional &amp; Cuti Bersama</span>
+                                            <span className="text-xs bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">
+                                                {nationalHolidays.length} Hari Terdaftar
+                                            </span>
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Tanggal yang tercatat di sini otomatis memberlakukan tarif khusus <strong>Libur Nasional (Holiday Price)</strong> pada sistem tiket.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={openAddHolidayModal}
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition shrink-0"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Tambah Hari Libur
+                                    </button>
+                                </div>
+
+                                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
+                                                <th className="py-3.5 px-4">Tanggal Libur</th>
+                                                <th className="py-3.5 px-4">Nama Hari Libur / Perayaan</th>
+                                                <th className="py-3.5 px-4">Keterangan Tambahan</th>
+                                                <th className="py-3.5 px-4 text-center">Status Tarif</th>
+                                                <th className="py-3.5 px-4 text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {nationalHolidays.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="5" className="py-8 text-center text-slate-400">
+                                                        Belum ada tanggal libur nasional yang ditambahkan.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                nationalHolidays.map((h) => {
+                                                    const dateStr = typeof h.holiday_date === 'string' ? h.holiday_date.substring(0, 10) : new Date(h.holiday_date).toISOString().substring(0, 10);
+                                                    const formattedDate = new Date(dateStr).toLocaleDateString('id-ID', {
+                                                        weekday: 'long',
+                                                        day: 'numeric',
+                                                        month: 'long',
+                                                        year: 'numeric'
+                                                    });
+                                                    return (
+                                                        <tr key={h.id} className="hover:bg-slate-50/80 transition">
+                                                            <td className="py-3.5 px-4">
+                                                                <span className="font-mono font-bold text-slate-900 block">{dateStr}</span>
+                                                                <span className="text-[11px] text-slate-400">{formattedDate}</span>
+                                                            </td>
+                                                            <td className="py-3.5 px-4">
+                                                                <span className="font-extrabold text-slate-900 text-sm block">{h.name}</span>
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-slate-500 max-w-xs">
+                                                                {h.description || '-'}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center">
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                                                                    <Sparkles className="w-3 h-3 text-rose-600" />
+                                                                    Tarif Libur Nasional
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-right">
+                                                                <div className="inline-flex items-center gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => openEditHolidayModal(h)}
+                                                                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
+                                                                        title="Edit Libur"
+                                                                    >
+                                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => deleteHoliday(h.id)}
+                                                                        className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 transition"
+                                                                        title="Hapus Libur"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1331,27 +1886,47 @@ export default function AdminDashboard({
                                             className="w-full border rounded-xl px-3 py-2 text-sm"
                                         />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-3 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Harga Tiket (Rp)</label>
+                                            <label className="block text-[11px] font-bold text-slate-700 mb-1">Weekday (Rp)</label>
                                             <input
                                                 type="number"
                                                 required
-                                                value={ticketForm.initial_price}
-                                                onChange={(e) => setTicketForm({ ...ticketForm, initial_price: Number(e.target.value) })}
-                                                className="w-full border rounded-xl px-3 py-2 text-sm"
+                                                value={ticketForm.weekday_price}
+                                                onChange={(e) => setTicketForm({ ...ticketForm, weekday_price: Number(e.target.value) })}
+                                                className="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Kuota Harian</label>
+                                            <label className="block text-[11px] font-bold text-amber-700 mb-1">Weekend (Rp)</label>
                                             <input
                                                 type="number"
                                                 required
-                                                value={ticketForm.initial_quota}
-                                                onChange={(e) => setTicketForm({ ...ticketForm, initial_quota: Number(e.target.value) })}
-                                                className="w-full border rounded-xl px-3 py-2 text-sm"
+                                                value={ticketForm.weekend_price}
+                                                onChange={(e) => setTicketForm({ ...ticketForm, weekend_price: Number(e.target.value) })}
+                                                className="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold text-amber-800"
                                             />
                                         </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-rose-700 mb-1">Libur Nas. (Rp)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                value={ticketForm.holiday_price}
+                                                onChange={(e) => setTicketForm({ ...ticketForm, holiday_price: Number(e.target.value) })}
+                                                className="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold text-rose-800"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Kuota Harian Default</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            value={ticketForm.initial_quota}
+                                            onChange={(e) => setTicketForm({ ...ticketForm, initial_quota: Number(e.target.value) })}
+                                            className="w-full border rounded-xl px-3 py-2 text-sm"
+                                        />
                                     </div>
                                     <div className="pt-2 flex gap-2">
                                         <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs">Simpan Kategori Tiket</button>
@@ -1476,6 +2051,301 @@ export default function AdminDashboard({
                                     <div className="pt-2 flex gap-2">
                                         <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs">Terbitkan Kupon</button>
                                         <button type="button" onClick={() => setPromoModalOpen(false)} className="px-4 border rounded-xl text-xs font-semibold">Batal</button>
+                                    </div>
+                                </form>
+                            </DialogPanel>
+                        </div>
+                    </Dialog>
+                </Transition>
+
+                {/* =========================================================
+                    MODAL ATUR TARIF TIER (WEEKDAY, WEEKEND, LIBUR NASIONAL)
+                ========================================================= */}
+                <Transition show={rateModalOpen} as={Fragment}>
+                    <Dialog className="relative z-50 font-sans" onClose={() => setRateModalOpen(false)}>
+                        <TransitionChild as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" />
+                        </TransitionChild>
+                        <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4">
+                            <DialogPanel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+                                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                        <Edit3 className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-extrabold text-slate-900 text-base">
+                                            Atur Tarif Tiket: {editingTier?.name}
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400">Atur harga hari kerja, akhir pekan, dan tanggal merah</p>
+                                    </div>
+                                </div>
+                                <form onSubmit={submitTierRates} className="space-y-4">
+                                    <div className="space-y-3">
+                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                                                Harga Hari Biasa (Weekday - Senin s/d Jumat)
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                                                <input
+                                                    type="number"
+                                                    required
+                                                    value={rateForm.weekday_price}
+                                                    onChange={(e) => setRateForm({ ...rateForm, weekday_price: Number(e.target.value) })}
+                                                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm font-bold text-slate-900 focus:border-indigo-500 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200">
+                                            <label className="block text-xs font-bold text-amber-900 mb-1">
+                                                Harga Akhir Pekan (Weekend - Sabtu &amp; Minggu)
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-500">Rp</span>
+                                                <input
+                                                    type="number"
+                                                    required
+                                                    value={rateForm.weekend_price}
+                                                    onChange={(e) => setRateForm({ ...rateForm, weekend_price: Number(e.target.value) })}
+                                                    className="w-full pl-9 pr-3 py-2 border border-amber-300 rounded-lg text-sm font-bold text-amber-950 focus:border-amber-500 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-200">
+                                            <label className="block text-xs font-bold text-rose-900 mb-1">
+                                                Harga Hari Libur Nasional (National Holidays)
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-rose-500">Rp</span>
+                                                <input
+                                                    type="number"
+                                                    required
+                                                    value={rateForm.holiday_price}
+                                                    onChange={(e) => setRateForm({ ...rateForm, holiday_price: Number(e.target.value) })}
+                                                    className="w-full pl-9 pr-3 py-2 border border-rose-300 rounded-lg text-sm font-bold text-rose-950 focus:border-rose-500 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3 rounded-xl bg-slate-100 text-[11px] text-slate-600 leading-relaxed">
+                                        💡 Mengubah tarif di sini akan otomatis mensinkronkan harga tiket inventori mendatang yang belum terjual.
+                                    </div>
+
+                                    <div className="pt-2 flex gap-2">
+                                        <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs">
+                                            Simpan Semua Tarif
+                                        </button>
+                                        <button type="button" onClick={() => setRateModalOpen(false)} className="px-4 border rounded-xl text-xs font-semibold">
+                                            Batal
+                                        </button>
+                                    </div>
+                                </form>
+                            </DialogPanel>
+                        </div>
+                    </Dialog>
+                </Transition>
+
+                {/* =========================================================
+                    MODAL PENETAPAN TANGGAL KHUSUS (OVERRIDE JADWAL)
+                ========================================================= */}
+                <Transition show={specialScheduleModalOpen} as={Fragment}>
+                    <Dialog className="relative z-50 font-sans" onClose={() => setSpecialScheduleModalOpen(false)}>
+                        <TransitionChild as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" />
+                        </TransitionChild>
+                        <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4">
+                            <DialogPanel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+                                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                                        <Calendar className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-extrabold text-slate-900 text-base">
+                                            Pengaturan Tanggal Khusus
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400">Menimpa jadwal buka/tutup rutin mingguan</p>
+                                    </div>
+                                </div>
+
+                                <form onSubmit={submitSpecialSchedule} className="space-y-4">
+                                    {/* Rentang Tanggal (Date Range Support) */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Mulai Tanggal</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={specialScheduleForm.start_date}
+                                                onChange={(e) => setSpecialScheduleForm({
+                                                    ...specialScheduleForm,
+                                                    start_date: e.target.value,
+                                                    end_date: e.target.value > specialScheduleForm.end_date ? e.target.value : specialScheduleForm.end_date
+                                                })}
+                                                className="w-full border rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:border-amber-500 outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Sampai Tanggal</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                min={specialScheduleForm.start_date}
+                                                value={specialScheduleForm.end_date}
+                                                onChange={(e) => setSpecialScheduleForm({ ...specialScheduleForm, end_date: e.target.value })}
+                                                className="w-full border rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:border-amber-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Status Pilihan: Tutup Khusus vs Buka Khusus vs Reset */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Status Pilihan</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSpecialScheduleForm({ ...specialScheduleForm, override_status: 'SPECIAL_CLOSED' })}
+                                                className={`p-2.5 rounded-xl border text-center text-xs font-bold transition flex flex-col items-center gap-1 ${
+                                                    specialScheduleForm.override_status === 'SPECIAL_CLOSED'
+                                                        ? 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-500/20'
+                                                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                                                <span>Tutup Khusus</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSpecialScheduleForm({ ...specialScheduleForm, override_status: 'SPECIAL_OPEN' })}
+                                                className={`p-2.5 rounded-xl border text-center text-xs font-bold transition flex flex-col items-center gap-1 ${
+                                                    specialScheduleForm.override_status === 'SPECIAL_OPEN'
+                                                        ? 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-500/20'
+                                                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                                                <span>Buka Khusus</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSpecialScheduleForm({ ...specialScheduleForm, override_status: 'REGULAR' })}
+                                                className={`p-2.5 rounded-xl border text-center text-xs font-bold transition flex flex-col items-center gap-1 ${
+                                                    specialScheduleForm.override_status === 'REGULAR'
+                                                        ? 'border-slate-600 bg-slate-100 text-slate-900 ring-2 ring-slate-400/20'
+                                                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                                                <span>Reset Rutin</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Kolom Keterangan / Alasan */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                            Alasan / Keterangan (Opsional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={specialScheduleForm.closure_reason}
+                                            onChange={(e) => setSpecialScheduleForm({ ...specialScheduleForm, closure_reason: e.target.value })}
+                                            placeholder="contoh: Maintenance tahunan wahana, renovasi lighting..."
+                                            className="w-full border rounded-xl px-3 py-2 text-xs text-slate-900 focus:border-amber-500 outline-none"
+                                        />
+                                        <p className="text-[11px] text-slate-400 mt-1">
+                                            Keterangan ini akan terlihat sebagai catatan informatif bagi staf dan pengunjung.
+                                        </p>
+                                    </div>
+
+                                    <div className="pt-2 flex gap-2">
+                                        <button
+                                            type="submit"
+                                            className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider shadow-sm transition"
+                                        >
+                                            Terapkan Jadwal Khusus
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpecialScheduleModalOpen(false)}
+                                            className="px-4 border rounded-xl text-xs font-semibold hover:bg-slate-50 transition"
+                                        >
+                                            Batal
+                                        </button>
+                                    </div>
+                                </form>
+                            </DialogPanel>
+                        </div>
+                    </Dialog>
+                </Transition>
+
+                {/* =========================================================
+                    MODAL MANAJEMEN HARI LIBUR NASIONAL (TAMBAH & EDIT)
+                ========================================================= */}
+                <Transition show={holidayModalOpen} as={Fragment}>
+                    <Dialog className="relative z-50 font-sans" onClose={() => setHolidayModalOpen(false)}>
+                        <TransitionChild as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" />
+                        </TransitionChild>
+                        <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4">
+                            <DialogPanel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+                                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                                    <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                                        <Sparkles className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-extrabold text-slate-900 text-base">
+                                            {editingHoliday ? 'Edit Hari Libur Nasional' : 'Tambah Hari Libur Nasional'}
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400">Atur kalender libur &amp; cuti bersama</p>
+                                    </div>
+                                </div>
+                                <form onSubmit={submitHoliday} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Tanggal Libur</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={holidayForm.holiday_date}
+                                            onChange={(e) => setHolidayForm({ ...holidayForm, holiday_date: e.target.value })}
+                                            className="w-full border rounded-xl px-3 py-2 text-sm focus:border-rose-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Hari Libur / Hari Raya</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={holidayForm.name}
+                                            onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
+                                            placeholder="contoh: Hari Raya Natal, Tahun Baru Masehi"
+                                            className="w-full border rounded-xl px-3 py-2 text-sm focus:border-rose-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Keterangan Tambahan (Opsional)</label>
+                                        <textarea
+                                            rows="2"
+                                            value={holidayForm.description}
+                                            onChange={(e) => setHolidayForm({ ...holidayForm, description: e.target.value })}
+                                            placeholder="contoh: Libur nasional cuti bersama serentak"
+                                            className="w-full border rounded-xl px-3 py-2 text-sm focus:border-rose-500 outline-none"
+                                        />
+                                    </div>
+                                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-[11px] text-rose-800 leading-relaxed">
+                                        ℹ️ Tiket yang dipesan pada tanggal ini otomatis menerapkan <strong>Tarif Libur Nasional (Holiday Price)</strong>.
+                                    </div>
+                                    <div className="pt-2 flex gap-2">
+                                        <button type="submit" className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs">
+                                            {editingHoliday ? 'Simpan Perubahan' : 'Tambahkan ke Kalender'}
+                                        </button>
+                                        <button type="button" onClick={() => setHolidayModalOpen(false)} className="px-4 border rounded-xl text-xs font-semibold">
+                                            Batal
+                                        </button>
                                     </div>
                                 </form>
                             </DialogPanel>

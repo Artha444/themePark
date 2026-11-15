@@ -11,7 +11,9 @@ export default function TicketIndex({
     categories = [], 
     selectedDate, 
     capacity, 
-    inventories = [] 
+    inventories = [],
+    holiday = null,
+    isWeekend = false
 }) {
     // 1. TANGGAL KUNJUNGAN: BISA JAUH-JAUH HARI (6 BULAN KE DEPAN)
     const today = new Date();
@@ -189,6 +191,50 @@ export default function TicketIndex({
 
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-6 space-y-6">
                     
+                    {/* =========================================================
+                        BANNER INFORMASI TARIF HARI LIBUR NASIONAL / WEEKEND
+                    ========================================================= */}
+                    {holiday ? (
+                        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                    <Tag className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                                            Hari Libur Nasional / Tanggal Merah
+                                        </span>
+                                        <span className="text-xs font-bold text-rose-950">{holiday.name}</span>
+                                    </div>
+                                    <p className="text-xs text-rose-800 mt-0.5">
+                                        Tanggal yang dipilih merupakan hari libur nasional. Berlaku tarif khusus <strong>Libur Nasional (High-Season Rate)</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="text-xs font-extrabold text-rose-700 bg-white border border-rose-200 px-3 py-1.5 rounded-xl shrink-0 hidden sm:inline-block">
+                                Tarif Libur Nasional
+                            </span>
+                        </div>
+                    ) : isWeekend ? (
+                        <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 shadow-xs flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                    <Calendar className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span className="text-xs font-bold text-amber-950">Akhir Pekan (Weekend)</span>
+                                    <p className="text-[11px] text-amber-800">
+                                        Tanggal kunjungan jatuh pada hari Sabtu / Minggu. Berlaku tarif <strong>Weekend Regular</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="text-xs font-bold text-amber-700 bg-white border border-amber-200 px-2.5 py-1 rounded-lg shrink-0 hidden sm:inline-block">
+                                Tarif Weekend
+                            </span>
+                        </div>
+                    ) : null}
+
                     {/* =========================================================
                         PEMBERITAHUAN KEBIJAKAN TIKET: NON-REFUNDABLE & RESCHEDULE
                     ========================================================= */}

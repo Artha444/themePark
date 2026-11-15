@@ -2,38 +2,42 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DailyInventory;
 use App\Models\Park;
 use App\Models\Promotion;
-use App\Models\DailyInventory;
-use Inertia\Inertia;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ParkController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
         $today = Carbon::today()->format('Y-m-d');
 
+        // Pre-fetch minimum ticket prices grouped by park to prevent N+1 queries
+        $minPrices = DailyInventory::query()
+            ->join('ticket_tiers', 'daily_inventories.ticket_tier_id', '=', 'ticket_tiers.id')
+            ->where('daily_inventories.visit_date', '>=', $today)
+            ->where('daily_inventories.is_open', true)
+            ->where('ticket_tiers.is_active', true)
+            ->groupBy('ticket_tiers.park_id')
+            ->selectRaw('ticket_tiers.park_id, MIN(daily_inventories.price) as min_price')
+            ->pluck('min_price', 'park_id');
+
         // Ambil semua Theme Park / Galeri yang aktif beserta relasi
         $parks = Park::withCount(['zones', 'ticketTiers'])
-            ->with(['zones.attractions', 'ticketTiers'])
+            ->with(['zones.attractions'])
             ->where('is_active', true)
             ->get()
-            ->map(function ($park) use ($today) {
-                // Hitung total atraksi/wahana
+            ->map(function ($park) use ($minPrices) {
                 $totalAttractions = $park->zones->sum(function ($zone) {
                     return $zone->attractions->count();
                 });
 
-                // Ambil harga terendah dari inventori tiket aktif mendatang
-                $tierIds = $park->ticketTiers->pluck('id');
-                $minPrice = DailyInventory::whereIn('ticket_tier_id', $tierIds)
-                    ->where('visit_date', '>=', $today)
-                    ->where('is_open', true)
-                    ->min('price') ?? 75000;
+                $minPrice = $minPrices->get($park->id) ?? 75000;
 
-                // Tentukan kategori & cover image representatif
                 $category = $park->category ?: (str_contains(strtolower($park->name), 'art') || str_contains(strtolower($park->name), 'pavilion') ? 'Art & Light Exhibition' : 'Theme Park & Wahana');
                 $isArt = str_contains(strtolower($category), 'art') || str_contains(strtolower($park->name), 'art');
                 $defaultImageUrl = $isArt
@@ -74,7 +78,7 @@ class ParkController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show(string $id): Response
     {
         $today = Carbon::today()->format('Y-m-d');
 
@@ -89,7 +93,6 @@ class ParkController extends Controller
             })
             ->firstOrFail();
 
-        // Kategori
         $category = $park->category ?: (str_contains(strtolower($park->name), 'art') || str_contains(strtolower($park->name), 'pavilion') ? 'Art & Light Exhibition' : 'Theme Park & Wahana');
         $isArt = str_contains(strtolower($category), 'art') || str_contains(strtolower($park->name), 'art');
         $defaultImageUrl = $isArt
@@ -97,12 +100,9 @@ class ParkController extends Controller
             : 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=1200&q=80';
         $imageUrl = !empty($park->image_url) ? $park->image_url : $defaultImageUrl;
 
-        // Ambil harga tiket terendah
-        $tierIds = $park->ticketTiers->pluck('id');
-        $minPrice = DailyInventory::whereIn('ticket_tier_id', $tierIds)
-            ->where('visit_date', '>=', $today)
-            ->where('is_open', true)
-            ->min('price') ?? 75000;
+        // Ambil harga tiket terendah dari relasi yang sudah di-eager load
+        $allInventories = $park->ticketTiers->flatMap->dailyInventories;
+        $minPrice = $allInventories->isNotEmpty() ? $allInventories->min('price') : 75000;
 
         // Promo aktif spesifik park atau global
         $now = Carbon::now();

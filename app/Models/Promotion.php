@@ -11,6 +11,7 @@ class Promotion extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'park_id',
         'code',
         'discount_type',
         'discount_value',
@@ -21,6 +22,11 @@ class Promotion extends Model
         'valid_until',
         'is_active',
     ];
+
+    public function park()
+    {
+        return $this->belongsTo(Park::class);
+    }
 
     public function redemptions()
     {

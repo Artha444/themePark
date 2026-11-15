@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Park;
 use App\Models\DailyInventory;
+use App\Models\NationalHoliday;
+use App\Models\Park;
 use App\Models\ParkDailyCapacity;
 use App\Models\Promotion;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Carbon\Carbon;
 
 class TicketController extends Controller
 {
@@ -26,12 +27,17 @@ class TicketController extends Controller
         if ($parkId) {
             $selectedPark = $parks->firstWhere('id', $parkId) ?: $parks->firstWhere('slug', $parkId);
         }
-        if (!$selectedPark && $parks->isNotEmpty()) {
+        if (! $selectedPark && $parks->isNotEmpty()) {
             $selectedPark = $parks->first();
         }
 
         // Get unique categories for filtering
         $categories = $parks->pluck('category')->filter()->unique()->values();
+
+        // Cek apakah tanggal merupakan Hari Libur Nasional atau Weekend
+        $nationalHoliday = NationalHoliday::whereDate('holiday_date', $date)->first();
+        $isHoliday = $nationalHoliday !== null;
+        $isWeekend = Carbon::parse($date)->isWeekend();
 
         // Get daily capacity for selected date & park
         $capacity = null;
@@ -53,12 +59,15 @@ class TicketController extends Controller
             );
 
             // Pastikan setiap active ticketTier memiliki DailyInventory untuk tanggal tersebut
-            $isWeekend = \Carbon\Carbon::parse($date)->isWeekend();
             $tiers = $selectedPark->ticketTiers()->where('is_active', true)->get();
             foreach ($tiers as $tier) {
-                $targetPrice = $isWeekend 
-                    ? ($tier->weekend_price ?? ($tier->weekday_price ? (int)($tier->weekday_price * 1.2) : 100000))
-                    : ($tier->weekday_price ?? 75000);
+                if ($isHoliday) {
+                    $targetPrice = $tier->holiday_price ?? ($tier->weekend_price ? (int) ($tier->weekend_price * 1.15) : 120000);
+                } elseif ($isWeekend) {
+                    $targetPrice = $tier->weekend_price ?? ($tier->weekday_price ? (int) ($tier->weekday_price * 1.2) : 100000);
+                } else {
+                    $targetPrice = $tier->weekday_price ?? 75000;
+                }
 
                 $inventory = DailyInventory::firstOrCreate(
                     [
@@ -98,15 +107,17 @@ class TicketController extends Controller
             'selectedDate' => $date,
             'capacity' => $capacity,
             'inventories' => $inventories,
+            'holiday' => $nationalHoliday,
+            'isWeekend' => $isWeekend,
         ]);
     }
 
     public function checkPromo(Request $request)
     {
         $request->validate([
-            'code'     => 'required|string',
+            'code' => 'required|string',
             'subtotal' => 'required|numeric',
-            'park_id'  => 'nullable|exists:parks,id',
+            'park_id' => 'nullable|exists:parks,id',
         ]);
 
         $promo = Promotion::where('code', strtoupper($request->code))
@@ -115,7 +126,7 @@ class TicketController extends Controller
             ->where('valid_until', '>=', Carbon::now())
             ->first();
 
-        if (!$promo) {
+        if (! $promo) {
             return response()->json([
                 'success' => false,
                 'message' => 'Kode promo tidak valid atau telah kadaluwarsa.',
@@ -123,9 +134,10 @@ class TicketController extends Controller
         }
 
         // ✅ VALIDASI SCOPING PARK: Promo milik park tertentu hanya valid di park itu
-        if (!is_null($promo->park_id)) {
-            if (!$request->park_id || $promo->park_id !== $request->park_id) {
+        if (! is_null($promo->park_id)) {
+            if (! $request->park_id || $promo->park_id !== $request->park_id) {
                 $parkName = $promo->park?->name ?? 'taman bermain lain';
+
                 return response()->json([
                     'success' => false,
                     'message' => "Kode promo ini hanya berlaku untuk tiket di {$parkName}, tidak dapat digunakan di tempat ini.",
@@ -136,7 +148,7 @@ class TicketController extends Controller
         if ($request->subtotal < $promo->min_order_amount) {
             return response()->json([
                 'success' => false,
-                'message' => 'Minimum transaksi untuk promo ini adalah Rp ' . number_format($promo->min_order_amount, 0, ',', '.'),
+                'message' => 'Minimum transaksi untuk promo ini adalah Rp '.number_format($promo->min_order_amount, 0, ',', '.'),
             ], 422);
         }
 
@@ -151,12 +163,12 @@ class TicketController extends Controller
         }
 
         return response()->json([
-            'success'         => true,
-            'code'            => $promo->code,
-            'discount_amount' => (int)$discount,
-            'discount_type'   => $promo->discount_type,
-            'park_id'         => $promo->park_id,  // null = berlaku global
-            'is_global'       => is_null($promo->park_id),
+            'success' => true,
+            'code' => $promo->code,
+            'discount_amount' => (int) $discount,
+            'discount_type' => $promo->discount_type,
+            'park_id' => $promo->park_id,  // null = berlaku global
+            'is_global' => is_null($promo->park_id),
         ]);
     }
 }

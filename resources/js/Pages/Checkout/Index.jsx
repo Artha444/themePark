@@ -1,29 +1,102 @@
 import { useState } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { ShieldCheck, QrCode, CreditCard, Wallet, ArrowLeft, Clock, Ticket } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { ShieldCheck, ArrowLeft, CreditCard, Lock, AlertCircle, Loader2 } from 'lucide-react';
 
-export default function Checkout({ visitDate, items, subtotal, discount, total, promoCode, currentUser }) {
-    const [selectedPayment, setSelectedPayment] = useState('QRIS');
+export default function Checkout({
+    visitDate,
+    items,
+    subtotal,
+    discount,
+    total,
+    promoCode,
+    currentUser,
+    midtransClientKey,
+}) {
+    const [customerName, setCustomerName] = useState(currentUser?.name || '');
+    const [customerEmail, setCustomerEmail] = useState(currentUser?.email || '');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [selectedPayment, setSelectedPayment] = useState('MIDTRANS');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
-    const { data, setData, post, processing, errors } = useForm({
-        customer_name: currentUser?.name || '',
-        customer_email: currentUser?.email || '',
-        customer_phone: '',
-        visit_date: visitDate,
-        items: items.map(i => ({ inventory_id: i.inventory_id, quantity: i.quantity })),
-        payment_method: selectedPayment,
-        promo_code: promoCode || '',
-    });
-
-    const handleSubmit = (e) => {
+    const handlePay = async (e) => {
         e.preventDefault();
-        data.payment_method = selectedPayment;
-        post('/tickets/checkout');
+        setErrorMessage('');
+        setIsSubmitting(true);
+
+        try {
+            // Send request to checkout API
+            const response = await fetch('/tickets/checkout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    customer_name: customerName,
+                    customer_email: customerEmail,
+                    customer_phone: customerPhone,
+                    visit_date: visitDate,
+                    items: items.map(i => ({ inventory_id: i.inventory_id, quantity: i.quantity })),
+                    payment_method: selectedPayment,
+                    promo_code: promoCode || '',
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Gagal memproses pesanan. Silakan coba lagi.');
+            }
+
+            const { snap_token, order_code } = result;
+
+            if (window.snap && snap_token) {
+                window.snap.pay(snap_token, {
+                    onSuccess: async function (snapResult) {
+                        try {
+                            await fetch(`/tickets/order/${order_code}/confirm-success`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                },
+                                body: JSON.stringify(snapResult || {}),
+                            });
+                        } catch (e) {
+                            console.error('Error confirming payment:', e);
+                        }
+                        router.visit(`/tickets/order/${order_code}`);
+                    },
+                    onPending: function (result) {
+                        router.visit(`/tickets/order/${order_code}`);
+                    },
+                    onError: function (result) {
+                        setErrorMessage('Pembayaran gagal atau dibatalkan oleh sistem Midtrans.');
+                        setIsSubmitting(false);
+                        router.visit(`/tickets/order/${order_code}`);
+                    },
+                    onClose: function () {
+                        // User closed the popup without finishing the payment
+                        setIsSubmitting(false);
+                        router.visit(`/tickets/order/${order_code}`);
+                    },
+                });
+            } else {
+                // Fallback direct visit if snap js not available
+                router.visit(`/tickets/order/${order_code}`);
+            }
+        } catch (err) {
+            setErrorMessage(err.message || 'Terjadi kesalahan saat memproses checkout.');
+            setIsSubmitting(false);
+        }
     };
 
     return (
         <>
-            <Head title="Konfirmasi & Pembayaran | Wonderpark" />
+            <Head title="Konfirmasi & Pembayaran Midtrans | Wonderpark" />
 
             <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-['Inter'] pb-24">
                 
@@ -33,16 +106,28 @@ export default function Checkout({ visitDate, items, subtotal, discount, total, 
                         <Link href="/tickets" className="inline-flex items-center gap-2 text-white/80 hover:text-white text-sm font-semibold">
                             <ArrowLeft className="w-5 h-5" /> Ubah Tiket
                         </Link>
-                        <span className="font-['Plus_Jakarta_Sans'] font-extrabold text-xl">WONDERPARK</span>
+                        <div className="flex items-center gap-2">
+                            <span className="font-['Plus_Jakarta_Sans'] font-extrabold text-xl">WONDERPARK</span>
+                            <span className="bg-amber-400 text-slate-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                                Midtrans Sandbox
+                            </span>
+                        </div>
                     </div>
                     <div className="max-w-4xl mx-auto mt-6">
                         <h1 className="font-['Plus_Jakarta_Sans'] text-3xl font-extrabold">Checkout & Pembayaran</h1>
-                        <p className="text-white/80 text-sm mt-1">Isi data pemesan untuk pengiriman E-Ticket QR Code.</p>
+                        <p className="text-white/80 text-sm mt-1">Selesaikan pesanan dengan aman melalui payment gateway Midtrans.</p>
                     </div>
                 </div>
 
                 <div className="max-w-4xl mx-auto px-6 -mt-6">
-                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {errorMessage && (
+                        <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-3 text-sm">
+                            <AlertCircle className="w-5 h-5 shrink-0" />
+                            <span>{errorMessage}</span>
+                        </div>
+                    )}
+
+                    <form onSubmit={handlePay} className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         
                         {/* Left Column: Customer Form & Payment Methods */}
                         <div className="md:col-span-2 space-y-6">
@@ -58,12 +143,12 @@ export default function Checkout({ visitDate, items, subtotal, discount, total, 
                                         <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Nama Lengkap</label>
                                         <input
                                             type="text"
-                                            value={data.customer_name}
-                                            onChange={e => setData('customer_name', e.target.value)}
+                                            value={customerName}
+                                            onChange={e => setCustomerName(e.target.value)}
                                             required
+                                            placeholder="Contoh: John Doe"
                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:border-[#4F46E5]"
                                         />
-                                        {errors.customer_name && <p className="text-xs text-rose-500 mt-1">{errors.customer_name}</p>}
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -71,80 +156,60 @@ export default function Checkout({ visitDate, items, subtotal, discount, total, 
                                             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email (Kirim Tiket)</label>
                                             <input
                                                 type="email"
-                                                value={data.customer_email}
-                                                onChange={e => setData('customer_email', e.target.value)}
+                                                value={customerEmail}
+                                                onChange={e => setCustomerEmail(e.target.value)}
                                                 required
+                                                placeholder="email@domain.com"
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:border-[#4F46E5]"
                                             />
-                                            {errors.customer_email && <p className="text-xs text-rose-500 mt-1">{errors.customer_email}</p>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">No. WhatsApp / HP</label>
                                             <input
-                                                type="text"
-                                                value={data.customer_phone}
-                                                onChange={e => setData('customer_phone', e.target.value)}
+                                                type="tel"
+                                                value={customerPhone}
+                                                onChange={e => setCustomerPhone(e.target.value)}
                                                 required
+                                                placeholder="081234567890"
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:border-[#4F46E5]"
                                             />
-                                            {errors.customer_phone && <p className="text-xs text-rose-500 mt-1">{errors.customer_phone}</p>}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Payment Method Selector */}
+                            {/* Midtrans Gateway Option */}
                             <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-                                <h2 className="font-['Plus_Jakarta_Sans'] text-lg font-bold mb-4">Metode Pembayaran</h2>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="font-['Plus_Jakarta_Sans'] text-lg font-bold">Metode Pembayaran Online</h2>
+                                    <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                                        <Lock className="w-3.5 h-3.5" /> Aman & Terenkripsi
+                                    </span>
+                                </div>
 
-                                <div className="grid grid-cols-3 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedPayment('QRIS')}
-                                        className={`p-4 rounded-xl border text-left transition flex flex-col justify-between h-24 ${
-                                            selectedPayment === 'QRIS'
-                                                ? 'border-[#4F46E5] bg-indigo-50/50 text-[#4F46E5] shadow-sm'
-                                                : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <QrCode className="w-6 h-6 text-[#4F46E5]" />
-                                        <div>
-                                            <span className="font-extrabold text-sm block">QRIS</span>
-                                            <span className="text-[10px] text-slate-500">Scan Bebas Bank</span>
+                                <div className="p-4 rounded-xl border-2 border-[#4F46E5] bg-indigo-50/40">
+                                    <div className="flex items-start justify-between">
+                                        <div className="space-y-1">
+                                            <span className="font-['Plus_Jakarta_Sans'] font-extrabold text-sm text-[#0F172A] flex items-center gap-2">
+                                                <CreditCard className="w-4 h-4 text-[#4F46E5]" /> Midtrans Snap Gateway
+                                            </span>
+                                            <p className="text-xs text-slate-600">
+                                                Tersedia berbagai pilihan: QRIS (GoPay, OVO, ShopeePay), Virtual Account (BCA, Mandiri, BNI, BRI), Kartu Kredit, dan Gerai Retail.
+                                            </p>
                                         </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedPayment('VA_BCA')}
-                                        className={`p-4 rounded-xl border text-left transition flex flex-col justify-between h-24 ${
-                                            selectedPayment === 'VA_BCA'
-                                                ? 'border-[#4F46E5] bg-indigo-50/50 text-[#4F46E5] shadow-sm'
-                                                : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <CreditCard className="w-6 h-6 text-[#4F46E5]" />
-                                        <div>
-                                            <span className="font-extrabold text-sm block">Virtual Account</span>
-                                            <span className="text-[10px] text-slate-500">BCA / Mandiri / BNI</span>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedPayment('EWALLET')}
-                                        className={`p-4 rounded-xl border text-left transition flex flex-col justify-between h-24 ${
-                                            selectedPayment === 'EWALLET'
-                                                ? 'border-[#4F46E5] bg-indigo-50/50 text-[#4F46E5] shadow-sm'
-                                                : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <Wallet className="w-6 h-6 text-[#4F46E5]" />
-                                        <div>
-                                            <span className="font-extrabold text-sm block">E-Wallet</span>
-                                            <span className="text-[10px] text-slate-500">GoPay / OVO</span>
-                                        </div>
-                                    </button>
+                                        <span className="text-xs bg-[#4F46E5] text-white px-2 py-0.5 rounded font-bold">
+                                            Aktif
+                                        </span>
+                                    </div>
+                                    <div className="mt-3 pt-3 border-t border-indigo-100/60 flex flex-wrap gap-2 text-[11px] text-slate-500 font-semibold">
+                                        <span className="bg-white px-2 py-1 rounded border border-slate-200">QRIS</span>
+                                        <span className="bg-white px-2 py-1 rounded border border-slate-200">BCA VA</span>
+                                        <span className="bg-white px-2 py-1 rounded border border-slate-200">Mandiri VA</span>
+                                        <span className="bg-white px-2 py-1 rounded border border-slate-200">BNI VA</span>
+                                        <span className="bg-white px-2 py-1 rounded border border-slate-200">BRI VA</span>
+                                        <span className="bg-white px-2 py-1 rounded border border-slate-200">GoPay</span>
+                                        <span className="bg-white px-2 py-1 rounded border border-slate-200">ShopeePay</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -194,11 +259,22 @@ export default function Checkout({ visitDate, items, subtotal, discount, total, 
 
                                 <button
                                     type="submit"
-                                    disabled={processing}
-                                    className="w-full mt-6 py-4 bg-[#F43F5E] hover:bg-[#E11D48] text-white font-bold rounded-xl shadow-[0_8px_16px_rgba(244,63,94,0.3)] transition disabled:opacity-50"
+                                    disabled={isSubmitting}
+                                    className="w-full mt-6 py-4 bg-[#F43F5E] hover:bg-[#E11D48] text-white font-bold rounded-xl shadow-[0_8px_16px_rgba(244,63,94,0.3)] transition disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
-                                    {processing ? 'Memproses Pesanan...' : 'Bayar Sekarang & Terbitkan Tiket'}
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            <span>Membuka Midtrans Snap...</span>
+                                        </>
+                                    ) : (
+                                        <span>Bayar via Midtrans</span>
+                                    )}
                                 </button>
+                                
+                                <p className="text-[11px] text-center text-slate-400 mt-3 flex items-center justify-center gap-1">
+                                    <Lock className="w-3 h-3" /> Transaksi Sandbox Mode Aman
+                                </p>
                             </div>
                         </div>
 
