@@ -186,8 +186,15 @@ export default function TicketCatalogIndex({
             return nameMatch || addressMatch || cityMatch || catMatch;
         });
 
-        // 2. Sorting
+        // 2. Sorting (Utamakan yang tiketnya sudah tersedia di posisi paling atas)
         result.sort((a, b) => {
+            const aHasTicket = !!a.min_price && a.min_price > 0;
+            const bHasTicket = !!b.min_price && b.min_price > 0;
+
+            // Park dengan tiket tersedia selalu di atas
+            if (aHasTicket && !bHasTicket) return -1;
+            if (!aHasTicket && bHasTicket) return 1;
+
             if (sortBy === 'name_asc') {
                 return (a.name || '').localeCompare(b.name || '');
             }
@@ -489,11 +496,17 @@ export default function TicketCatalogIndex({
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                 {paginatedParks.map((p) => {
+                                    const hasTickets = !!p.min_price && p.min_price > 0;
+
                                     return (
                                         <Link
                                             key={p.id}
                                             href={`/parks/${p.slug || p.id}`}
-                                            className="group rounded-2xl border border-zinc-200/90 bg-white overflow-hidden shadow-xs hover:shadow-xl hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer"
+                                            className={`group rounded-2xl border bg-white overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer ${
+                                                hasTickets
+                                                    ? 'border-zinc-200/90 hover:border-orange-500/50'
+                                                    : 'border-zinc-200/70 hover:border-zinc-400/60'
+                                            }`}
                                         >
                                             {/* Thumbnail Gambar Park */}
                                             <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-100">
@@ -501,41 +514,55 @@ export default function TicketCatalogIndex({
                                                     src={p.image_url}
                                                     alt={p.name}
                                                     loading="lazy"
-                                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    className={`h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 ${
+                                                        !hasTickets ? 'grayscale-[35%] brightness-[0.92]' : ''
+                                                    }`}
                                                     onError={(e) => {
                                                         e.target.src = 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=800&q=80';
                                                     }}
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/40 via-transparent to-transparent opacity-60" />
 
-                                                {/* Chip Kategori di pojok atas */}
+                                                {/* Chip Kategori di pojok atas kiri */}
                                                 <div className="absolute left-3 top-3">
                                                     <span className="rounded-full bg-white/95 backdrop-blur-md px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-zinc-800 shadow-xs">
                                                         {p.category}
                                                     </span>
                                                 </div>
 
-                                                {/* Jam Buka di pojok kanan atas */}
-                                                {p.open_time && (
-                                                    <div className="absolute right-3 top-3">
-                                                        <span className="rounded-full bg-zinc-950/70 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white flex items-center gap-1">
-                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                                                            Buka
+                                                {/* Status Badge di pojok kanan atas */}
+                                                <div className="absolute right-3 top-3">
+                                                    {hasTickets ? (
+                                                        p.open_time && (
+                                                            <span className="rounded-full bg-zinc-950/70 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white flex items-center gap-1">
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                                                Buka
+                                                            </span>
+                                                        )
+                                                    ) : (
+                                                        <span className="rounded-full bg-amber-500/90 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow-xs">
+                                                            Segera Hadir
                                                         </span>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
 
                                             {/* Badan Kartu */}
                                             <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                                                 <div>
-                                                    <h3 className="font-anton text-xl uppercase tracking-wide text-zinc-950 group-hover:text-orange-600 transition-colors line-clamp-1">
-                                                        {p.name}
-                                                    </h3>
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <h3 className={`font-anton text-xl uppercase tracking-wide line-clamp-1 transition-colors ${
+                                                            hasTickets
+                                                                ? 'text-zinc-950 group-hover:text-orange-600'
+                                                                : 'text-zinc-800 group-hover:text-zinc-950'
+                                                        }`}>
+                                                            {p.name}
+                                                        </h3>
+                                                    </div>
 
                                                     {/* Lokasi */}
                                                     <p className="flex items-center gap-1.5 text-xs text-zinc-500 mt-1.5 line-clamp-1">
-                                                        <MapPin className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                                                        <MapPin className={`h-3.5 w-3.5 shrink-0 ${hasTickets ? 'text-orange-600' : 'text-zinc-400'}`} />
                                                         {p.city ? `${p.city} • ` : ''}{p.location_address || 'Indonesia'}
                                                     </p>
 
@@ -548,27 +575,41 @@ export default function TicketCatalogIndex({
                                                     )}
                                                 </div>
 
-                                                {/* Action Bar Bawah (Harga Mulai Dari + Tombol Pesan) */}
+                                                {/* Action Bar Bawah (Harga Mulai Dari + Tombol Aksi) */}
                                                 <div className="border-t border-zinc-100 pt-3 flex items-center justify-between">
                                                     <div>
-                                                        <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                                                            Mulai dari
-                                                        </span>
-                                                        {p.min_price ? (
-                                                            <span className="font-anton text-lg text-orange-600 leading-tight">
-                                                                {rupiah(p.min_price)}
-                                                            </span>
+                                                        {hasTickets ? (
+                                                            <>
+                                                                <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                                                                    Mulai dari
+                                                                </span>
+                                                                <span className="font-anton text-lg text-orange-600 leading-tight">
+                                                                    {rupiah(p.min_price)}
+                                                                </span>
+                                                            </>
                                                         ) : (
-                                                            <span className="text-xs font-semibold text-zinc-500">
-                                                                Cek Tiket
-                                                            </span>
+                                                            <>
+                                                                <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                                                                    Jadwal Belum Rilis
+                                                                </span>
+                                                                <span className="text-[11px] font-semibold text-zinc-400">
+                                                                    Tiket segera dibuka
+                                                                </span>
+                                                            </>
                                                         )}
                                                     </div>
 
-                                                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 group-hover:bg-orange-500 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs group-hover:shadow-orange-600/30 transition">
-                                                        <span>Pesan</span>
-                                                        <ChevronRight className="h-3.5 w-3.5" />
-                                                    </span>
+                                                    {hasTickets ? (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 group-hover:bg-orange-500 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs group-hover:shadow-orange-600/30 transition">
+                                                            <span>Pesan</span>
+                                                            <ChevronRight className="h-3.5 w-3.5" />
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 group-hover:bg-zinc-200 text-zinc-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition">
+                                                            <span>Lihat Info</span>
+                                                            <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </Link>

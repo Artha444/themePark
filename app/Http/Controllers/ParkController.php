@@ -18,12 +18,19 @@ class ParkController extends Controller
     {
         $today = Carbon::today()->format('Y-m-d');
 
+        // Pre-fetch harga termurah asli dari ticket_tiers aktif milik masing-masing park
+        $tierMinPrices = \App\Models\TicketTier::where('is_active', true)
+            ->groupBy('park_id')
+            ->selectRaw('park_id, MIN(weekday_price) as min_price')
+            ->pluck('min_price', 'park_id');
+
         // Pre-fetch minimum ticket prices grouped by park to prevent N+1 queries
-        $minPrices = DailyInventory::query()
+        $inventoryMinPrices = DailyInventory::query()
             ->join('ticket_tiers', 'daily_inventories.ticket_tier_id', '=', 'ticket_tiers.id')
             ->where('daily_inventories.visit_date', '>=', $today)
             ->where('daily_inventories.is_open', true)
             ->where('ticket_tiers.is_active', true)
+            ->where('daily_inventories.price', '>', 0)
             ->groupBy('ticket_tiers.park_id')
             ->selectRaw('ticket_tiers.park_id, MIN(daily_inventories.price) as min_price')
             ->pluck('min_price', 'park_id');
@@ -33,12 +40,12 @@ class ParkController extends Controller
             ->with(['zones.attractions'])
             ->where('is_active', true)
             ->get()
-            ->map(function ($park) use ($minPrices) {
+            ->map(function ($park) use ($tierMinPrices, $inventoryMinPrices) {
                 $totalAttractions = $park->zones->sum(function ($zone) {
                     return $zone->attractions->count();
                 });
 
-                $minPrice = $minPrices->get($park->id) ?? 75000;
+                $minPrice = $tierMinPrices->get($park->id) ?? $inventoryMinPrices->get($park->id) ?? null;
 
                 $category = $park->category ?: (str_contains(strtolower($park->name), 'art') || str_contains(strtolower($park->name), 'pavilion') ? 'Art & Light Exhibition' : 'Theme Park & Wahana');
                 $isArt = str_contains(strtolower($category), 'art') || str_contains(strtolower($park->name), 'art');
