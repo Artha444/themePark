@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { 
-    QrCode, MapPin, Calendar, Clock, CheckCircle2, AlertTriangle, 
+    MapPin, Calendar, Clock, CheckCircle2, AlertTriangle, 
     ArrowLeft, ShieldCheck, Ticket, RefreshCw, AlertCircle, Info, X
 } from 'lucide-react';
+import QRCode from 'react-qr-code';
 
 export default function TicketShow({ ticket, flash = {} }) {
     const isValid = ticket.status === 'VALID';
@@ -91,8 +92,15 @@ export default function TicketShow({ ticket, flash = {} }) {
                         
                         {/* QR Code Container */}
                         <div className="bg-white p-5 rounded-2xl shadow-xl flex flex-col items-center border-4 border-slate-800">
-                            <QrCode className="w-40 h-40 sm:w-44 sm:h-44 text-slate-900" />
-                            <span className="mt-2 text-[11px] font-mono font-extrabold text-slate-700 tracking-wider">
+                            <div className="p-2 bg-white rounded-xl">
+                                <QRCode
+                                    value={ticket.qr_token}
+                                    size={180}
+                                    style={{ height: 'auto', maxWidth: '100%', width: '100%' }}
+                                    viewBox={`0 0 256 256`}
+                                />
+                            </div>
+                            <span className="mt-3 text-[11px] font-mono font-extrabold text-slate-700 tracking-wider">
                                 {ticket.qr_token}
                             </span>
                         </div>

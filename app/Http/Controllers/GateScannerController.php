@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Gate;
-use App\Models\StaffUser;
-use App\Models\IssuedTicket;
 use App\Models\CheckInLog;
+use App\Models\Gate;
+use App\Models\IssuedTicket;
+use App\Models\StaffUser;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Carbon\Carbon;
 
 class GateScannerController extends Controller
 {
@@ -16,7 +16,7 @@ class GateScannerController extends Controller
     {
         $gates = Gate::where('is_active', true)->get();
         $staff = StaffUser::where('is_active', true)->first();
-        
+
         $recentLogs = CheckInLog::with(['ticket.orderItem.dailyInventory.ticketTier', 'gate'])
             ->orderBy('scan_time', 'desc')
             ->take(10)
@@ -38,17 +38,27 @@ class GateScannerController extends Controller
         ]);
 
         $gate = Gate::findOrFail($request->gate_id);
+
+        if (! $gate->is_active) {
+            return response()->json([
+                'success' => false,
+                'status' => 'GATE_INACTIVE',
+                'title' => 'GERBANG TIDAK AKTIF',
+                'message' => "Gerbang {$gate->gate_name} saat ini sedang dinonaktifkan.",
+            ], 422);
+        }
+
         $token = trim($request->qr_token);
 
         // Search by qr_token or ticket_code
         $ticket = IssuedTicket::with(['orderItem.dailyInventory.ticketTier', 'park'])
             ->where(function ($q) use ($token) {
                 $q->where('qr_token', $token)
-                  ->orWhere('ticket_code', $token);
+                    ->orWhere('ticket_code', $token);
             })
             ->first();
 
-        if (!$ticket) {
+        if (! $ticket) {
             CheckInLog::create([
                 'ticket_id' => null,
                 'gate_id' => $gate->id,
@@ -129,7 +139,7 @@ class GateScannerController extends Controller
                 'success' => false,
                 'status' => 'ALREADY_USED',
                 'title' => 'TIKET SUDAH DIGUNAKAN',
-                'message' => 'Tiket ini telah di-scan pada ' . Carbon::parse($ticket->first_used_at)->format('H:i:s WIB'),
+                'message' => 'Tiket ini telah di-scan pada '.Carbon::parse($ticket->first_used_at)->format('H:i:s WIB'),
                 'ticket' => $ticket,
             ], 422);
         }
@@ -152,11 +162,35 @@ class GateScannerController extends Controller
             ], 422);
         }
 
-        // Success - update ticket status
-        $ticket->update([
-            'status' => 'USED',
-            'first_used_at' => Carbon::now(),
-        ]);
+        // Success - atomic update ticket status to prevent race conditions & double-check-in
+        $affected = IssuedTicket::where('id', $ticket->id)
+            ->where('status', 'VALID')
+            ->update([
+                'status' => 'USED',
+                'first_used_at' => Carbon::now(),
+            ]);
+
+        if ($affected === 0) {
+            // Already scanned concurrently
+            CheckInLog::create([
+                'ticket_id' => $ticket->id,
+                'gate_id' => $gate->id,
+                'scanned_by' => $request->staff_id,
+                'scan_time' => Carbon::now(),
+                'scan_result' => 'ALREADY_USED',
+                'device_metadata' => ['concurrent_attempt' => true],
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'status' => 'ALREADY_USED',
+                'title' => 'TIKET SUDAH DIGUNAKAN',
+                'message' => 'Tiket ini baru saja diproses dan digunakan di gerbang lain.',
+                'ticket' => $ticket->fresh(),
+            ], 422);
+        }
+
+        $ticket->refresh();
 
         $log = CheckInLog::create([
             'ticket_id' => $ticket->id,

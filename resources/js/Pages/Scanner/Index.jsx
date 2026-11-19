@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Head, Link } from '@inertiajs/react';
-import { QrCode, CheckCircle2, XCircle, AlertTriangle, ShieldCheck, ArrowLeft, RefreshCw, Zap, Volume2 } from 'lucide-react';
+import { 
+    QrCode, CheckCircle2, XCircle, AlertTriangle, ShieldCheck, 
+    ArrowLeft, RefreshCw, Zap, Volume2, Camera, CameraOff 
+} from 'lucide-react';
 
 export default function ScannerIndex({ gates, staff, recentLogs }) {
     const [selectedGateId, setSelectedGateId] = useState(gates[0]?.id || '');
@@ -8,11 +11,33 @@ export default function ScannerIndex({ gates, staff, recentLogs }) {
     const [scanning, setScanning] = useState(false);
     const [scanResult, setScanResult] = useState(null);
     const [logs, setLogs] = useState(recentLogs || []);
+    
+    // Live camera scanning state
+    const [isCameraActive, setIsCameraActive] = useState(false);
+    const [cameraSupported, setCameraSupported] = useState(false);
+    const [cameraError, setCameraError] = useState(null);
+    
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
+    const detectorRef = useRef(null);
+    const scanIntervalRef = useRef(null);
+    const isProcessingScanRef = useRef(false);
 
-    const handleScanSubmit = async (e) => {
-        if (e) e.preventDefault();
-        if (!qrInput.trim() || !selectedGateId) return;
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+            setCameraSupported(true);
+            try {
+                detectorRef.current = new window.BarcodeDetector({ formats: ['qr_code'] });
+            } catch (e) {
+                console.warn('BarcodeDetector initialization fallback', e);
+            }
+        }
+    }, []);
 
+    const executeCheckIn = async (tokenToScan) => {
+        if (!tokenToScan || !selectedGateId || isProcessingScanRef.current) return;
+
+        isProcessingScanRef.current = true;
         setScanning(true);
         setScanResult(null);
 
@@ -24,7 +49,7 @@ export default function ScannerIndex({ gates, staff, recentLogs }) {
                     'Accept': 'application/json',
                 },
                 body: JSON.stringify({
-                    qr_token: qrInput.trim(),
+                    qr_token: tokenToScan.trim(),
                     gate_id: selectedGateId,
                     staff_id: staff?.id || null,
                 }),
@@ -55,8 +80,75 @@ export default function ScannerIndex({ gates, staff, recentLogs }) {
             });
         } finally {
             setScanning(false);
+            // Cooldown so camera doesn't repeatedly scan the exact same frame in milliseconds
+            setTimeout(() => {
+                isProcessingScanRef.current = false;
+            }, 2000);
         }
     };
+
+    const handleScanSubmit = (e) => {
+        if (e) e.preventDefault();
+        executeCheckIn(qrInput);
+    };
+
+    const startCamera = async () => {
+        setCameraError(null);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                await videoRef.current.play();
+            }
+            setIsCameraActive(true);
+
+            // Start detection loop if BarcodeDetector is available
+            if (detectorRef.current) {
+                scanIntervalRef.current = setInterval(async () => {
+                    if (!videoRef.current || isProcessingScanRef.current || videoRef.current.readyState < 2) return;
+                    try {
+                        const barcodes = await detectorRef.current.detect(videoRef.current);
+                        if (barcodes && barcodes.length > 0) {
+                            const rawValue = barcodes[0].rawValue;
+                            if (rawValue) {
+                                executeCheckIn(rawValue);
+                            }
+                        }
+                    } catch (err) {
+                        // ignore detector frame errors
+                    }
+                }, 400);
+            }
+        } catch (err) {
+            console.error('Camera access error:', err);
+            setCameraError('Izin akses kamera ditolak atau kamera tidak ditemukan.');
+            setIsCameraActive(false);
+        }
+    };
+
+    const stopCamera = () => {
+        if (scanIntervalRef.current) {
+            clearInterval(scanIntervalRef.current);
+            scanIntervalRef.current = null;
+        }
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+        setIsCameraActive(false);
+    };
+
+    useEffect(() => {
+        return () => {
+            stopCamera();
+        };
+    }, []);
 
     return (
         <>
@@ -113,18 +205,59 @@ export default function ScannerIndex({ gates, staff, recentLogs }) {
                                 </span>
                             </div>
 
-                            {/* Simulated Camera Scanner Box */}
-                            <div className="relative w-full h-56 bg-slate-950 rounded-2xl border-2 border-dashed border-indigo-500/40 flex flex-col items-center justify-center overflow-hidden mb-6">
-                                <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 via-transparent to-indigo-500/5 animate-pulse"></div>
-                                
-                                <div className="w-36 h-36 border-2 border-indigo-500 rounded-2xl relative flex items-center justify-center">
-                                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-indigo-400"></div>
-                                    <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-indigo-400"></div>
-                                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-indigo-400"></div>
-                                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-indigo-400"></div>
-                                    <QrCode className="w-16 h-16 text-indigo-400/40 animate-pulse" />
-                                </div>
-                                <span className="text-[11px] text-slate-400 mt-3 font-semibold">Arahkan QR Code Tiket ke Kamera</span>
+                            {/* Live Video / Simulated Camera Scanner Box */}
+                            <div className="relative w-full h-64 bg-slate-950 rounded-2xl border-2 border-dashed border-indigo-500/40 flex flex-col items-center justify-center overflow-hidden mb-6">
+                                {isCameraActive ? (
+                                    <>
+                                        <video
+                                            ref={videoRef}
+                                            autoPlay
+                                            playsInline
+                                            muted
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 border-4 border-indigo-500/30 pointer-events-none flex items-center justify-center">
+                                            <div className="w-44 h-44 border-2 border-indigo-400 rounded-2xl relative shadow-[0_0_20px_rgba(99,102,241,0.5)]">
+                                                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-white"></div>
+                                                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-white"></div>
+                                                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-white"></div>
+                                                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-white"></div>
+                                            </div>
+                                        </div>
+                                        <div className="absolute top-3 right-3 z-10">
+                                            <button
+                                                type="button"
+                                                onClick={stopCamera}
+                                                className="px-2.5 py-1 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-lg backdrop-blur-xs"
+                                            >
+                                                <CameraOff className="w-3.5 h-3.5" /> Matikan Kamera
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 via-transparent to-indigo-500/5 animate-pulse"></div>
+                                        <div className="w-36 h-36 border-2 border-indigo-500 rounded-2xl relative flex items-center justify-center">
+                                            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-indigo-400"></div>
+                                            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-indigo-400"></div>
+                                            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-indigo-400"></div>
+                                            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-indigo-400"></div>
+                                            <QrCode className="w-16 h-16 text-indigo-400/40 animate-pulse" />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={startCamera}
+                                            className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg transition"
+                                        >
+                                            <Camera className="w-4 h-4" /> Buka Kamera Scanner
+                                        </button>
+                                        {cameraError && (
+                                            <p className="text-[11px] text-rose-400 mt-2 font-medium px-4 text-center">
+                                                {cameraError}
+                                            </p>
+                                        )}
+                                    </>
+                                )}
                             </div>
 
                             {/* Manual QR Input Form */}

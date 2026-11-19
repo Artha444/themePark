@@ -1,45 +1,151 @@
-import { useState, useMemo } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
-import { 
-    Calendar, Ticket, CheckCircle2, ChevronRight, Tag, AlertCircle, 
-    ArrowLeft, MapPin, Search, Filter, ShieldAlert, RefreshCw, X, ChevronDown, Clock, Info
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Head, Link } from '@inertiajs/react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import {
+    MapPin, Clock, Search, X, ChevronRight, ChevronLeft,
+    Sparkles, CheckCircle2, ShieldCheck, Plus, ArrowUp,
+    SlidersHorizontal, Compass, ArrowUpDown,
 } from 'lucide-react';
+import SiteNavbar, { NAV_SECTIONS } from '@/Components/SiteNavbar';
+import MyTicketsModal from '@/Components/MyTicketsModal';
 
-export default function TicketIndex({ 
-    parks = [], 
-    park, 
-    categories = [], 
-    selectedDate, 
-    capacity, 
-    inventories = [],
-    holiday = null,
-    isWeekend = false
+/* Easing konsisten dengan landing page Vurasi */
+const EASE = [0.22, 1, 0.36, 1];
+
+/* =========================================================================
+   DEKORASI SVG (Karakter visual Vurasi persis Landing Page)
+========================================================================= */
+function TicketDeco({ className = '' }) {
+    return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className={className}>
+            <path
+                fill="#AC4A2E"
+                d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"
+            />
+            <path d="M13 5v2M13 11v2M13 17v2" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" fill="none" />
+        </svg>
+    );
+}
+
+function Sparkle({ className = '' }) {
+    return (
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" className={className}>
+            <path d="M12 2c.8 5 4.2 8.4 9.2 9.2-5 .8-8.4 4.2-9.2 9.2-.8-5-4.2-8.4-9.2-9.2 5-.8 8.4-4.2 9.2-9.2Z" />
+        </svg>
+    );
+}
+
+function SectionDivider({ label = 'Vurasi' }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            aria-hidden="true"
+            className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-8 sm:gap-4 sm:px-6 sm:py-10 lg:px-8"
+        >
+            <span className="h-px flex-1 border-t-2 border-dashed border-zinc-300" />
+            <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ duration: 16, ease: 'linear', repeat: Infinity }}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-zinc-900 bg-zinc-50 text-base leading-none text-orange-600"
+            >
+                &#10035;
+            </motion.span>
+            <span className="hidden text-[10px] font-bold uppercase tracking-[0.35em] text-zinc-400 sm:block">
+                {label}
+            </span>
+            <span className="h-px flex-1 border-t-2 border-dashed border-zinc-300" />
+        </motion.div>
+    );
+}
+
+function FaqItem({ faq, idx, defaultOpen = false }) {
+    const [open, setOpen] = useState(defaultOpen);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.45, delay: idx * 0.08, ease: EASE }}
+            className="border-t border-zinc-900/15 last:border-b"
+        >
+            <h3>
+                <button
+                    type="button"
+                    onClick={() => setOpen((o) => !o)}
+                    aria-expanded={open}
+                    className="group flex w-full items-center justify-between gap-6 py-5 text-left cursor-pointer"
+                >
+                    <span className="flex items-baseline gap-4">
+                        <span aria-hidden="true" className="font-anton text-sm tracking-widest text-orange-600">
+                            {String(idx + 1).padStart(2, '0')}
+                        </span>
+                        <span
+                            className={`text-base font-bold transition-colors duration-300 sm:text-lg ${
+                                open ? 'text-orange-600' : 'text-zinc-950 group-hover:text-orange-600'
+                            }`}
+                        >
+                            {faq.q}
+                        </span>
+                    </span>
+                    <motion.span
+                        animate={{ rotate: open ? 45 : 0 }}
+                        transition={{ duration: 0.25, ease: EASE }}
+                        aria-hidden="true"
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center border transition-colors duration-300 ${
+                            open ? 'border-orange-500 bg-orange-600 text-white' : 'border-zinc-900/20 bg-white text-zinc-700 group-hover:border-orange-500/50'
+                        }`}
+                    >
+                        <Plus className="h-4 w-4" />
+                    </motion.span>
+                </button>
+            </h3>
+            <AnimatePresence initial={false}>
+                {open && (
+                    <motion.div
+                        key="jawaban"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: EASE }}
+                        className="overflow-hidden"
+                    >
+                        <p className="mb-5 max-w-2xl pb-1 pl-10 pr-10 text-sm leading-relaxed text-zinc-600">{faq.a}</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.div>
+    );
+}
+
+/* Navigasi bersama - Pesan Cepat aktif saat di halaman tiket */
+const NAV_LINKS = NAV_SECTIONS.map((s) => ({
+    label: s.label,
+    href: s.href ?? `/#${s.id}`,
+    active: s.href === '/tickets' || s.id === 'quick-booking',
+}));
+
+const ITEMS_PER_PAGE = 12;
+
+export default function TicketCatalogIndex({
+    parks = [],
+    categories = [],
 }) {
-    // 1. TANGGAL KUNJUNGAN: BISA JAUH-JAUH HARI (6 BULAN KE DEPAN)
-    const today = new Date();
-    const todayIso = today.toISOString().split('T')[0];
-    
-    // Hitung tanggal maksimal 6 bulan ke depan (~180 hari)
-    const maxDateObj = new Date(today);
-    maxDateObj.setMonth(maxDateObj.getMonth() + 6);
-    const maxDateIso = maxDateObj.toISOString().split('T')[0];
-
-    // Quick pills untuk 7 hari ke depan
-    const quickDateOptions = Array.from({ length: 7 }).map((_, i) => {
-        const d = new Date(today);
-        d.setDate(today.getDate() + i);
-        const iso = d.toISOString().split('T')[0];
-        const dayName = i === 0 ? 'Hari Ini' : i === 1 ? 'Besok' : d.toLocaleDateString('id-ID', { weekday: 'short' });
-        const dateFormatted = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-        return { iso, dayName, dateFormatted, isWeekend: d.getDay() === 0 || d.getDay() === 6 };
-    });
-
-    // 2. STATE UNTUK PENCARIAN & KATEGORI THEME PARK (SOLUSI 90-100+ PARK)
-    const [parkSearch, setParkSearch] = useState('');
+    const [lookupModalOpen, setLookupModalOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('ALL');
-    const [isParkDropdownOpen, setIsParkDropdownOpen] = useState(false);
+    const [sortBy, setSortBy] = useState('name_asc'); // name_asc | name_desc | price_asc | price_desc
+    const [currentPage, setCurrentPage] = useState(1);
 
-    // Kategori default gabungan jika ada
+    const catalogRef = useRef(null);
+
+    // Format Rupiah
+    const rupiah = (n) => `Rp ${new Intl.NumberFormat('id-ID').format(n || 0)}`;
+
+    // Gabungkan list kategori unik dengan kategori default utama
     const allCategories = useMemo(() => {
         const unique = new Set(categories);
         unique.add('Theme Park & Wahana');
@@ -47,614 +153,637 @@ export default function TicketIndex({
         return Array.from(unique);
     }, [categories]);
 
-    // Filter daftar park berdasarkan search query & kategori
-    const filteredParks = useMemo(() => {
-        return parks.filter((p) => {
-            const matchesSearch = 
-                p.name.toLowerCase().includes(parkSearch.toLowerCase()) ||
-                (p.location_address && p.location_address.toLowerCase().includes(parkSearch.toLowerCase()));
-            
-            const matchesCategory = 
-                selectedCategory === 'ALL' || 
+    // Hitung jumlah destinasi per kategori untuk ditampilkan di pill filter
+    const categoryCounts = useMemo(() => {
+        const counts = { ALL: parks.length };
+        parks.forEach((p) => {
+            if (p.category) {
+                counts[p.category] = (counts[p.category] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [parks]);
+
+    // Filter & Sort list destinasi (dirancang untuk performa tinggi hingga 100+ destinasi)
+    const filteredAndSortedParks = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim();
+
+        // 1. Filter Search & Kategori
+        const result = parks.filter((p) => {
+            const matchesCategory =
+                selectedCategory === 'ALL' ||
                 (p.category && p.category.toLowerCase() === selectedCategory.toLowerCase());
 
-            return matchesSearch && matchesCategory;
-        });
-    }, [parks, parkSearch, selectedCategory]);
+            if (!matchesCategory) return false;
 
-    const [quantities, setQuantities] = useState({});
-    const [promoCode, setPromoCode] = useState('');
-    const [promoDiscount, setPromoDiscount] = useState(0);
-    const [promoApplied, setPromoApplied] = useState('');
-    const [promoError, setPromoError] = useState('');
-    const [loadingPromo, setLoadingPromo] = useState(false);
+            if (!q) return true;
 
-    const handleQuantityChange = (inventoryId, delta) => {
-        setQuantities(prev => {
-            const current = prev[inventoryId] || 0;
-            const next = Math.max(0, current + delta);
-            return { ...prev, [inventoryId]: next };
-        });
-    };
+            const nameMatch = p.name?.toLowerCase().includes(q);
+            const addressMatch = p.location_address?.toLowerCase().includes(q);
+            const cityMatch = p.city?.toLowerCase().includes(q);
+            const catMatch = p.category?.toLowerCase().includes(q);
 
-    const handleDateSelect = (isoDate) => {
-        router.get('/tickets', { date: isoDate, park_id: park?.id }, { preserveState: false });
-    };
-
-    const handleParkSelect = (parkId) => {
-        setIsParkDropdownOpen(false);
-        router.get('/tickets', { date: selectedDate, park_id: parkId }, { preserveState: false });
-    };
-
-    // Subtotal calculation
-    const itemsSelected = Object.entries(quantities)
-        .filter(([_, qty]) => qty > 0)
-        .map(([invId, qty]) => {
-            const inv = inventories.find(i => i.id === invId);
-            return {
-                inventory_id: invId,
-                quantity: qty,
-                price: inv ? inv.price : 0,
-                name: inv ? inv.ticket_tier.name : '',
-            };
+            return nameMatch || addressMatch || cityMatch || catMatch;
         });
 
-    const subtotal = itemsSelected.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const totalQuantity = itemsSelected.reduce((acc, item) => acc + item.quantity, 0);
-
-    const applyPromo = async () => {
-        if (!promoCode.trim()) return;
-        setLoadingPromo(true);
-        setPromoError('');
-
-        try {
-            const response = await fetch('/api/tickets/check-promo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({
-                    code: promoCode,
-                    subtotal,
-                    park_id: park?.id,
-                }),
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                setPromoDiscount(data.discount_amount);
-                setPromoApplied(data.code);
-            } else {
-                setPromoError(data.message || 'Kode promo tidak valid');
-                setPromoDiscount(0);
-                setPromoApplied('');
+        // 2. Sorting
+        result.sort((a, b) => {
+            if (sortBy === 'name_asc') {
+                return (a.name || '').localeCompare(b.name || '');
             }
-        } catch (e) {
-            setPromoError('Gagal memverifikasi promo');
-        } finally {
-            setLoadingPromo(false);
-        }
-    };
-
-    const handleCheckout = () => {
-        if (itemsSelected.length === 0) return;
-
-        const checkoutData = itemsSelected.map(i => ({
-            inventory_id: i.inventory_id,
-            quantity: i.quantity,
-        }));
-
-        const params = new URLSearchParams({
-            items: JSON.stringify(checkoutData),
-            date: selectedDate,
+            if (sortBy === 'name_desc') {
+                return (b.name || '').localeCompare(a.name || '');
+            }
+            if (sortBy === 'price_asc') {
+                return (a.min_price || 0) - (b.min_price || 0);
+            }
+            if (sortBy === 'price_desc') {
+                return (b.min_price || 0) - (a.min_price || 0);
+            }
+            return 0;
         });
 
-        if (promoApplied) {
-            params.append('promo', promoApplied);
-        }
+        return result;
+    }, [parks, searchQuery, selectedCategory, sortBy]);
 
-        router.get(`/tickets/checkout?${params.toString()}`);
+    // Reset ke halaman 1 setiap kali filter atau pencarian berubah
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, selectedCategory, sortBy]);
+
+    // Pagination calculations (Menangani 100+ destinasi secara ringan & mulus)
+    const totalItems = filteredAndSortedParks.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedParks = useMemo(() => {
+        return filteredAndSortedParks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredAndSortedParks, startIndex]);
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+        if (catalogRef.current) {
+            catalogRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     };
 
-    const total = Math.max(0, subtotal - promoDiscount);
+    // Tombol kembali ke atas
+    const [scrolled, setScrolled] = useState(false);
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 300);
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    // Generate smart page numbers: e.g. [1, 2, 3, '...', 10]
+    const pageNumbers = useMemo(() => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        if (currentPage <= 4) {
+            return [1, 2, 3, 4, 5, '...', totalPages];
+        }
+        if (currentPage >= totalPages - 3) {
+            return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+        }
+        return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+    }, [totalPages, currentPage]);
 
     return (
         <>
-            <Head title={`Pesan Tiket | ${park?.name || 'Vurasi Tiket'}`} />
+            <Head title="Katalog Destinasi & Tiket Wahana | Vurasi" />
 
-            <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans pb-36">
-                
-                {/* Header Navbar */}
-                <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-orange-600 text-white pt-6 pb-12 px-4 sm:px-6 shadow-md">
-                    <div className="max-w-5xl mx-auto flex items-center justify-between">
-                        <Link href="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white text-xs font-semibold transition">
-                            <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
-                        </Link>
-                        <span className="font-extrabold text-lg tracking-tight">VURASI MULTI-PARK PORTAL</span>
-                    </div>
-
-                    <div className="max-w-5xl mx-auto mt-6">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold backdrop-blur-xs text-white border border-white/20">
-                                <MapPin className="w-3.5 h-3.5 text-amber-300" /> {park?.name || 'Pilih Wahana'}
-                            </span>
-                            {park?.category && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-orange-500/80 text-[11px] font-bold text-white">
-                                    {park.category}
-                                </span>
-                            )}
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Pemesanan Tiket Masuk Resmi</h1>
-                        <p className="text-white/80 text-xs sm:text-sm mt-1">
-                            Pesan tiket untuk kunjungan hari ini hingga <strong>6 bulan ke depan</strong> dengan jaminan turnstile barcode resmi.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-6 space-y-6">
-                    
-                    {/* =========================================================
-                        BANNER INFORMASI TARIF HARI LIBUR NASIONAL / WEEKEND
-                    ========================================================= */}
-                    {holiday ? (
-                        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                                    <Tag className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
-                                            Hari Libur Nasional / Tanggal Merah
-                                        </span>
-                                        <span className="text-xs font-bold text-rose-950">{holiday.name}</span>
-                                    </div>
-                                    <p className="text-xs text-rose-800 mt-0.5">
-                                        Tanggal yang dipilih merupakan hari libur nasional. Berlaku tarif khusus <strong>Libur Nasional (High-Season Rate)</strong>.
-                                    </p>
-                                </div>
-                            </div>
-                            <span className="text-xs font-extrabold text-rose-700 bg-white border border-rose-200 px-3 py-1.5 rounded-xl shrink-0 hidden sm:inline-block">
-                                Tarif Libur Nasional
-                            </span>
-                        </div>
-                    ) : isWeekend ? (
-                        <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 shadow-xs flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                                    <Calendar className="w-4 h-4" />
-                                </div>
-                                <div>
-                                    <span className="text-xs font-bold text-amber-950">Akhir Pekan (Weekend)</span>
-                                    <p className="text-[11px] text-amber-800">
-                                        Tanggal kunjungan jatuh pada hari Sabtu / Minggu. Berlaku tarif <strong>Weekend Regular</strong>.
-                                    </p>
-                                </div>
-                            </div>
-                            <span className="text-xs font-bold text-amber-700 bg-white border border-amber-200 px-2.5 py-1 rounded-lg shrink-0 hidden sm:inline-block">
-                                Tarif Weekend
-                            </span>
-                        </div>
-                    ) : null}
+            <MotionConfig reducedMotion="user">
+                <div className="vurasi min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased selection:bg-orange-500 selection:text-white pb-24">
+                    {/* Navbar bersama — terhubung dengan Landing Page */}
+                    <SiteNavbar links={NAV_LINKS} onCekPesanan={() => setLookupModalOpen(true)} />
 
                     {/* =========================================================
-                        PEMBERITAHUAN KEBIJAKAN TIKET: NON-REFUNDABLE & RESCHEDULE
+                        HERO BANNER KATALOG (Gaya Landing Page Vurasi)
                     ========================================================= */}
-                    <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex items-start gap-3.5">
-                        <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                            <ShieldAlert className="w-5 h-5" />
-                        </div>
-                        <div className="text-xs space-y-1">
-                            <h3 className="font-extrabold text-amber-950 text-sm flex items-center gap-1.5">
-                                Kebijakan Penting Pemesanan Tiket:
-                            </h3>
-                            <p className="text-amber-900 leading-relaxed">
-                                • <strong>Tidak Dapat Di-Refund:</strong> Tiket yang sudah dibeli dan dibayar <strong>tidak dapat dibatalkan atau diuangkan kembali (Non-Refundable)</strong> untuk alasan apa pun.
-                            </p>
-                            <p className="text-amber-900 leading-relaxed">
-                                • <strong>Reschedule Gratis:</strong> Anda dapat mengubah tanggal kunjungan (Reschedule) <strong>secara gratis tanpa biaya tambahan</strong> melalui halaman cek e-tiket, <em>dengan syarat kuota tiket pada tanggal tujuan baru masih tersedia</em>. Jika kuota hari tersebut penuh/tutup, reschedule ke hari tersebut tidak dapat dilakukan.
-                            </p>
-                        </div>
-                    </div>
+                    <section className="relative overflow-hidden bg-gradient-to-b from-orange-100/30 via-sky-50/40 to-zinc-50 pb-12 pt-28 sm:pb-16 sm:pt-32">
+                        {/* Dot pattern latar terang ala landing page */}
+                        <div className="dots-bg-light absolute inset-0 opacity-40 pointer-events-none" />
 
-                    {/* =========================================================
-                        1. SELEKTOR THEME PARK DENGAN FILTER & SEARCH (SKALABEL 90-100+ PARK)
-                    ========================================================= */}
-                    <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                            <div>
-                                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                    <MapPin className="w-4 h-4 text-indigo-600" /> 1. Pilih Destinasi / Wahana:
-                                </h2>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Tersedia <strong>{parks.length} destinasi</strong> aktif di platform. Gunakan pencarian atau filter kategori di bawah.
-                                </p>
-                            </div>
-
-                            {/* Tombol Buka/Tutup Seluruh Pilihan jika banyak */}
-                            <button
-                                type="button"
-                                onClick={() => setIsParkDropdownOpen(!isParkDropdownOpen)}
-                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                        {/* Dekorasi floating tiket & kilau */}
+                        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                            <motion.div
+                                animate={{ y: [0, -10, 0] }}
+                                transition={{ duration: 4.5, ease: 'easeInOut', repeat: Infinity }}
+                                className="absolute left-[5%] top-[25%]"
                             >
-                                <span>{isParkDropdownOpen ? 'Kecilkan Pilihan' : 'Ganti Destinasi Lain'}</span>
-                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isParkDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
+                                <TicketDeco className="h-10 w-10 -rotate-[22deg] sm:h-12 sm:w-12 opacity-80" />
+                            </motion.div>
+                            <motion.div
+                                animate={{ y: [0, -12, 0] }}
+                                transition={{ duration: 5, ease: 'easeInOut', repeat: Infinity, delay: 0.8 }}
+                                className="absolute right-[8%] top-[28%]"
+                            >
+                                <TicketDeco className="h-12 w-12 rotate-[18deg] sm:h-14 sm:w-14 opacity-80" />
+                            </motion.div>
+                            <motion.span
+                                animate={{ scale: [0.7, 1, 0.7], opacity: [0.4, 1, 0.4] }}
+                                transition={{ duration: 2.8, ease: 'easeInOut', repeat: Infinity }}
+                                className="absolute left-[18%] top-[18%] text-orange-500"
+                            >
+                                <Sparkle className="h-6 w-6" />
+                            </motion.span>
+                            <motion.span
+                                animate={{ scale: [1, 0.7, 1], opacity: [0.9, 0.4, 0.9] }}
+                                transition={{ duration: 3.2, ease: 'easeInOut', repeat: Infinity, delay: 1 }}
+                                className="absolute right-[20%] top-[20%] text-[#62C6EA]"
+                            >
+                                <Sparkle className="h-7 w-7" />
+                            </motion.span>
                         </div>
 
-                        {/* Search & Filter Bar */}
-                        <div className="space-y-3">
-                            <div className="flex flex-col sm:flex-row gap-2.5">
-                                {/* Input Search */}
+                        <div className="relative z-10 mx-auto max-w-5xl px-4 text-center sm:px-6">
+                            {/* Pill Header */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.5, ease: EASE }}
+                                className="inline-flex items-center gap-2 rounded-full border border-orange-500/25 bg-orange-50 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-orange-700 shadow-sm"
+                            >
+                                <Sparkles className="h-3.5 w-3.5 text-orange-600" />
+                                Katalog Resmi Wahana &amp; Pameran Seni ({parks.length} Tempat)
+                            </motion.div>
+
+                            {/* Headline Anton Besar */}
+                            <motion.h1
+                                initial={{ opacity: 0, y: 24 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
+                                className="mt-4 font-anton text-4xl uppercase leading-[0.95] tracking-[0.02em] text-zinc-950 sm:text-6xl lg:text-7xl"
+                            >
+                                Semua Destinasi &amp; <span className="stroke-word">Tiket Wahana</span>
+                            </motion.h1>
+
+                            <motion.p
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6, delay: 0.2, ease: EASE }}
+                                className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base"
+                            >
+                                Temukan theme park, wahana bermain, dan galeri pameran seni interaktif di jaringan resmi Vurasi. Pesan tiket langsung dan nikmati akses masuk gerbang tanpa antre.
+                            </motion.p>
+
+                            {/* Trust Badges */}
+                            <motion.div
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
+                                className="mt-7 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-zinc-700 sm:gap-6"
+                            >
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 border border-zinc-200/80 shadow-xs">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                    E-Tiket QR Terbit Instan
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 border border-zinc-200/80 shadow-xs">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                    Garansi Bebas Reschedule
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 border border-zinc-200/80 shadow-xs">
+                                    <ShieldCheck className="h-4 w-4 text-orange-600" />
+                                    100% Kuota Gerbang Resmi
+                                </span>
+                            </motion.div>
+                        </div>
+                    </section>
+
+                    {/* =========================================================
+                        PANEL FILTER & PENCARIAN (Dirancang untuk 100+ Destinasi)
+                    ========================================================= */}
+                    <div ref={catalogRef} className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 -mt-4 relative z-20">
+                        <div className="rounded-3xl border border-zinc-200/90 bg-white p-4 sm:p-6 shadow-xl shadow-zinc-900/5 space-y-4">
+                            
+                            {/* Baris Atas: Input Search & Dropdown Sorting */}
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                {/* Search Input */}
                                 <div className="relative flex-1">
-                                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                    <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                                     <input
                                         type="text"
-                                        placeholder="Cari nama wahana, galeri, atau kota (contoh: Wonderpark, Bandung)..."
-                                        value={parkSearch}
-                                        onChange={(e) => {
-                                            setParkSearch(e.target.value);
-                                            setIsParkDropdownOpen(true);
-                                        }}
-                                        className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none"
+                                        placeholder="Cari nama destinasi, wahana, kota, atau alamat..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-3 pl-11 pr-10 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition focus:border-orange-500 focus:bg-white shadow-xs"
                                     />
-                                    {parkSearch && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setParkSearch('')}
-                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    {searchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchQuery('')}
+                                            aria-label="Hapus pencarian"
+                                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 cursor-pointer"
                                         >
-                                            <X className="w-3.5 h-3.5" />
+                                            <X className="h-4 w-4" />
                                         </button>
                                     )}
                                 </div>
 
-                                {/* Filter Kategori Tabs */}
-                                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedCategory('ALL')}
-                                        className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                                            selectedCategory === 'ALL'
-                                                ? 'bg-indigo-600 text-white shadow-xs'
-                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                        }`}
-                                    >
-                                        Semua Kategori
-                                    </button>
-                                    {allCategories.map((cat) => (
+                                {/* Dropdown Sorting */}
+                                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 w-full sm:w-auto">
+                                    <div className="relative w-full sm:w-56">
+                                        <ArrowUpDown className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                                        <select
+                                            value={sortBy}
+                                            onChange={(e) => setSortBy(e.target.value)}
+                                            aria-label="Urutkan destinasi"
+                                            className="w-full appearance-none rounded-2xl border border-zinc-200 bg-zinc-50 py-3 pl-10 pr-8 text-xs font-bold text-zinc-700 outline-none transition focus:border-orange-500 focus:bg-white cursor-pointer shadow-xs"
+                                        >
+                                            <option value="name_asc">Nama (A &rarr; Z)</option>
+                                            <option value="name_desc">Nama (Z &rarr; A)</option>
+                                            <option value="price_asc">Harga Terendah</option>
+                                            <option value="price_desc">Harga Tertinggi</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Baris Kategori: Pills Kategori Responsif */}
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedCategory('ALL')}
+                                    className={`rounded-full px-4 py-2 text-xs font-bold transition whitespace-nowrap cursor-pointer shadow-xs ${
+                                        selectedCategory === 'ALL'
+                                            ? 'bg-orange-600 text-white'
+                                            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                                    }`}
+                                >
+                                    Semua ({parks.length})
+                                </button>
+                                {allCategories.map((cat) => {
+                                    const count = categoryCounts[cat] || 0;
+                                    const isSelected = selectedCategory === cat;
+                                    return (
                                         <button
                                             key={cat}
                                             type="button"
                                             onClick={() => setSelectedCategory(cat)}
-                                            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                                                selectedCategory === cat
-                                                    ? 'bg-indigo-600 text-white shadow-xs'
-                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                            className={`rounded-full px-4 py-2 text-xs font-bold transition whitespace-nowrap cursor-pointer shadow-xs ${
+                                                isSelected
+                                                    ? 'bg-orange-600 text-white'
+                                                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
                                             }`}
                                         >
-                                            {cat}
+                                            {cat} {count > 0 && `(${count})`}
                                         </button>
-                                    ))}
-                                </div>
+                                    );
+                                })}
                             </div>
 
-                            {/* Info Destinasi Terpilih Saat Ini */}
-                            <div className="p-3.5 rounded-xl border-2 border-indigo-600 bg-indigo-50/40 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-200 shrink-0">
-                                        <img 
-                                            src={park?.image_url || 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=200&q=80'} 
-                                            alt={park?.name}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=200&q=80'; }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">Sedang Dipilih</span>
-                                            <span className="text-xs font-semibold text-slate-500">{park?.category}</span>
-                                        </div>
-                                        <h3 className="font-extrabold text-sm text-slate-900 mt-0.5">{park?.name}</h3>
-                                        <p className="text-[11px] text-slate-500 truncate max-w-md">{park?.location_address}</p>
-                                    </div>
-                                </div>
-                                <span className="text-xs font-bold text-indigo-600 hidden sm:inline-block">✓ Aktif</span>
-                            </div>
-
-                            {/* Grid / List Pencarian jika mode ganti dibuka atau ada ketikan search */}
-                            {(isParkDropdownOpen || parkSearch) && (
-                                <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 max-h-72 overflow-y-auto space-y-2">
-                                    <div className="text-[11px] font-bold uppercase text-slate-400 px-1">
-                                        Hasil Pencarian ({filteredParks.length} tempat):
-                                    </div>
-                                    {filteredParks.length === 0 ? (
-                                        <div className="py-6 text-center text-xs text-slate-400">
-                                            Tidak ada destinasi yang cocok dengan pencarian "{parkSearch}".
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {filteredParks.map((p) => {
-                                                const isSelected = park?.id === p.id;
-                                                return (
-                                                    <button
-                                                        key={p.id}
-                                                        type="button"
-                                                        onClick={() => handleParkSelect(p.id)}
-                                                        className={`text-left p-3 rounded-xl border transition-all flex items-start gap-2.5 ${
-                                                            isSelected 
-                                                                ? 'border-indigo-600 bg-white ring-2 ring-indigo-600/20 shadow-xs' 
-                                                                : 'border-slate-200 hover:border-indigo-300 bg-white'
-                                                        }`}
-                                                    >
-                                                        <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 shrink-0 mt-0.5">
-                                                            <img 
-                                                                src={p.image_url || 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=100&q=80'} 
-                                                                alt=""
-                                                                className="w-full h-full object-cover"
-                                                                onError={(e) => { e.target.style.display = 'none'; }}
-                                                            />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center justify-between">
-                                                                <h4 className="font-bold text-xs text-slate-900 truncate">{p.name}</h4>
-                                                                {isSelected && <span className="text-[9px] font-extrabold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded">Dipilih</span>}
-                                                            </div>
-                                                            <span className="text-[10px] text-orange-600 font-semibold block">{p.category}</span>
-                                                            <p className="text-[11px] text-slate-400 truncate">{p.location_address}</p>
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
+                            {/* Indikator Hasil Pencarian & Halaman */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3 text-xs text-zinc-500">
+                                <div>
+                                    Menampilkan <strong className="text-zinc-900 font-bold">{totalItems === 0 ? 0 : startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, totalItems)}</strong> dari <strong className="text-zinc-900 font-bold">{totalItems}</strong> destinasi
+                                    {(searchQuery || selectedCategory !== 'ALL') && (
+                                        <span className="ml-1.5 text-zinc-400">
+                                            (difilter dari {parks.length} total)
+                                        </span>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    </div>
 
-                    {/* =========================================================
-                        2. SELEKTOR TANGGAL KUNJUNGAN: PILIHAN 7 HARI + PICKER 6 BULAN KE DEPAN
-                    ========================================================= */}
-                    <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                            <div>
-                                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                    <Calendar className="w-4 h-4 text-indigo-600" /> 2. Pilih Tanggal Kunjungan:
-                                </h2>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Pilih tanggal cepat di bawah atau tentukan tanggal jauh-jauh hari hingga 6 bulan ke depan.
-                                </p>
-                            </div>
-
-                            {/* Sisa Kuota Realtime */}
-                            {capacity && (
-                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
-                                    <span>Kuota Tersedia:</span>
-                                    <span className="text-sm font-extrabold text-emerald-700">
-                                        {Math.max(0, capacity.max_capacity - capacity.booked_count).toLocaleString()} tiket
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Quick 7-Day Pills */}
-                        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2.5 mb-4">
-                            {quickDateOptions.map((opt) => {
-                                const isSelected = selectedDate === opt.iso;
-                                return (
+                                {(searchQuery || selectedCategory !== 'ALL') && (
                                     <button
-                                        key={opt.iso}
                                         type="button"
-                                        onClick={() => handleDateSelect(opt.iso)}
-                                        className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
-                                            isSelected 
-                                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm -translate-y-0.5' 
-                                                : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
-                                        }`}
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setSelectedCategory('ALL');
+                                        }}
+                                        className="text-orange-600 hover:underline font-bold text-xs cursor-pointer"
                                     >
-                                        <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
-                                            {opt.dayName}
-                                        </span>
-                                        <span className="text-sm sm:text-base font-extrabold mt-0.5">
-                                            {opt.dateFormatted}
-                                        </span>
-                                        {opt.isWeekend && (
-                                            <span className={`text-[9px] uppercase font-bold mt-1 px-1 py-0.2 rounded ${
-                                                isSelected ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-600'
-                                            }`}>
-                                                Weekend
-                                            </span>
-                                        )}
+                                        Reset Semua Filter
                                     </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* Input Tanggal Bebas Hingga 6 Bulan ke Depan */}
-                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5">
-                                <Clock className="w-4 h-4 text-orange-600 shrink-0" />
-                                <div>
-                                    <h4 className="text-xs font-bold text-slate-800">Pesan Jauh-Jauh Hari (Presale / Rencana Liburan)</h4>
-                                    <p className="text-[11px] text-slate-500">
-                                        Pilih tanggal spesifik mulai hari ini sampai {new Date(maxDateIso).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                    </p>
-                                </div>
+                                )}
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <label htmlFor="custom-date-picker" className="text-xs font-bold text-slate-600 shrink-0">
-                                    Pilih Tanggal:
-                                </label>
-                                <input
-                                    id="custom-date-picker"
-                                    type="date"
-                                    min={todayIso}
-                                    max={maxDateIso}
-                                    value={selectedDate}
-                                    onChange={(e) => handleDateSelect(e.target.value)}
-                                    className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 bg-white outline-none focus:border-indigo-600"
-                                />
-                            </div>
                         </div>
                     </div>
 
                     {/* =========================================================
-                        3. DAFTAR KATEGORI TIKET & KUOTA HARIAN
+                        GRID KARTU PARK (SIMPLE, ELEGAN, CEPAT DIBACA)
                     ========================================================= */}
-                    <div className="space-y-3.5">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                <Ticket className="w-4 h-4 text-indigo-600" /> 3. Pilih Kategori Tiket ({new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}):
-                            </h2>
-                            <span className="text-xs text-slate-500 font-medium">Batas maks. 10 tiket / transaksi</span>
-                        </div>
-
-                        {inventories.length === 0 ? (
-                            <div className="bg-white rounded-2xl p-10 text-center border border-slate-200">
-                                <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-2" />
-                                <h3 className="font-bold text-slate-900">Tidak Ada Tiket Tersedia</h3>
-                                <p className="text-xs text-slate-500 mt-1">Kuota tiket untuk tanggal ini belum dibuka atau tempat sedang ditutup.</p>
+                    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-8">
+                        {paginatedParks.length === 0 ? (
+                            <div className="rounded-3xl border border-dashed border-zinc-300 bg-white p-12 text-center my-6">
+                                <div className="h-16 w-16 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto mb-4 border border-orange-100">
+                                    <Compass className="h-8 w-8" />
+                                </div>
+                                <h3 className="font-anton text-2xl uppercase tracking-wide text-zinc-900">
+                                    Destinasi Tidak Ditemukan
+                                </h3>
+                                <p className="mt-1 text-xs text-zinc-500 max-w-md mx-auto">
+                                    Tidak ada destinasi yang cocok dengan kata kunci "{searchQuery}" pada kategori yang dipilih.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchQuery('');
+                                        setSelectedCategory('ALL');
+                                    }}
+                                    className="mt-5 inline-flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-orange-600/30 hover:bg-orange-500 transition cursor-pointer"
+                                >
+                                    Tampilkan Semua Destinasi
+                                </button>
                             </div>
                         ) : (
-                            <div className="grid gap-3.5">
-                                {inventories.map((inv) => {
-                                    const tier = inv.ticket_tier;
-                                    const qty = quantities[inv.id] || 0;
-                                    const remainingQuota = inv.total_quota - inv.booked_quota;
-                                    const isSoldOut = remainingQuota <= 0;
-
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {paginatedParks.map((p) => {
                                     return (
-                                        <div 
-                                            key={inv.id}
-                                            className={`bg-white rounded-2xl p-5 border transition flex flex-col md:flex-row md:items-center justify-between gap-5 ${
-                                                qty > 0 ? 'border-indigo-600 shadow-sm ring-1 ring-indigo-600/20' : 'border-slate-200'
-                                            }`}
+                                        <Link
+                                            key={p.id}
+                                            href={`/parks/${p.slug || p.id}`}
+                                            className="group rounded-2xl border border-zinc-200/90 bg-white overflow-hidden shadow-xs hover:shadow-xl hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer"
                                         >
-                                            <div className="space-y-1 flex-1">
-                                                <div className="flex items-center gap-2.5">
-                                                    <h3 className="font-extrabold text-base text-slate-900">{tier.name}</h3>
-                                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                                                        isSoldOut ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
-                                                    }`}>
-                                                        {isSoldOut ? 'HABIS' : `Sisa ${remainingQuota} Tiket`}
-                                                    </span>
-                                                </div>
-                                                <p className="text-xs text-slate-500 leading-relaxed">{tier.description || 'Akses masuk gerbang dan seluruh atraksi standar.'}</p>
-                                                
-                                                <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 pt-1">
-                                                    {tier.min_age && <span>Min. Usia: {tier.min_age} th</span>}
-                                                    {tier.max_height_cm && <span>Tinggi: &le; {tier.max_height_cm} cm</span>}
-                                                </div>
-                                            </div>
+                                            {/* Thumbnail Gambar Park */}
+                                            <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-100">
+                                                <img
+                                                    src={p.image_url}
+                                                    alt={p.name}
+                                                    loading="lazy"
+                                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    onError={(e) => {
+                                                        e.target.src = 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=800&q=80';
+                                                    }}
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/40 via-transparent to-transparent opacity-60" />
 
-                                            <div className="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 pt-3 md:pt-0">
-                                                <div className="text-left md:text-right">
-                                                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Harga</span>
-                                                    <span className="text-xl font-black text-indigo-600">
-                                                        Rp {new Intl.NumberFormat('id-ID').format(inv.price)}
+                                                {/* Chip Kategori di pojok atas */}
+                                                <div className="absolute left-3 top-3">
+                                                    <span className="rounded-full bg-white/95 backdrop-blur-md px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-zinc-800 shadow-xs">
+                                                        {p.category}
                                                     </span>
-                                                    <span className="text-[10px] text-slate-400 block">/orang</span>
                                                 </div>
 
-                                                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
-                                                    <button
-                                                        type="button"
-                                                        disabled={qty === 0 || isSoldOut}
-                                                        onClick={() => handleQuantityChange(inv.id, -1)}
-                                                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-40 font-bold transition"
-                                                    >
-                                                        -
-                                                    </button>
-                                                    <span className="w-8 text-center font-extrabold text-sm text-slate-900">
-                                                        {qty}
+                                                {/* Jam Buka di pojok kanan atas */}
+                                                {p.open_time && (
+                                                    <div className="absolute right-3 top-3">
+                                                        <span className="rounded-full bg-zinc-950/70 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white flex items-center gap-1">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                                            Buka
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Badan Kartu */}
+                                            <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+                                                <div>
+                                                    <h3 className="font-anton text-xl uppercase tracking-wide text-zinc-950 group-hover:text-orange-600 transition-colors line-clamp-1">
+                                                        {p.name}
+                                                    </h3>
+
+                                                    {/* Lokasi */}
+                                                    <p className="flex items-center gap-1.5 text-xs text-zinc-500 mt-1.5 line-clamp-1">
+                                                        <MapPin className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                                                        {p.city ? `${p.city} • ` : ''}{p.location_address || 'Indonesia'}
+                                                    </p>
+
+                                                    {/* Jam Operasional */}
+                                                    {p.open_time && (
+                                                        <p className="flex items-center gap-1.5 text-[11px] text-zinc-400 mt-1">
+                                                            <Clock className="h-3 w-3 text-zinc-400 shrink-0" />
+                                                            {p.open_time.substring(0, 5)} - {p.close_time?.substring(0, 5) || '18:00'} WIB
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {/* Action Bar Bawah (Harga Mulai Dari + Tombol Pesan) */}
+                                                <div className="border-t border-zinc-100 pt-3 flex items-center justify-between">
+                                                    <div>
+                                                        <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                                                            Mulai dari
+                                                        </span>
+                                                        {p.min_price ? (
+                                                            <span className="font-anton text-lg text-orange-600 leading-tight">
+                                                                {rupiah(p.min_price)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs font-semibold text-zinc-500">
+                                                                Cek Tiket
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 group-hover:bg-orange-500 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs group-hover:shadow-orange-600/30 transition">
+                                                        <span>Pesan</span>
+                                                        <ChevronRight className="h-3.5 w-3.5" />
                                                     </span>
-                                                    <button
-                                                        type="button"
-                                                        disabled={isSoldOut || qty >= Math.min(10, remainingQuota)}
-                                                        onClick={() => handleQuantityChange(inv.id, 1)}
-                                                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-40 font-bold transition"
-                                                    >
-                                                        +
-                                                    </button>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </Link>
                                     );
                                 })}
                             </div>
                         )}
+
+                        {/* =====================================================
+                            PAGINATION (Penting untuk Penanganan 100+ Destinasi)
+                        ===================================================== */}
+                        {totalPages > 1 && (
+                            <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-zinc-200/90 pt-6">
+                                <span className="text-xs text-zinc-500">
+                                    Halaman <strong className="text-zinc-900 font-bold">{currentPage}</strong> dari <strong className="text-zinc-900 font-bold">{totalPages}</strong> ({totalItems} destinasi)
+                                </span>
+
+                                <div className="flex items-center gap-1.5">
+                                    {/* Tombol Sebelumnya */}
+                                    <button
+                                        type="button"
+                                        disabled={currentPage === 1}
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        aria-label="Halaman sebelumnya"
+                                        className="flex h-9 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 text-xs font-bold text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                        <span className="hidden sm:inline">Sebelumnya</span>
+                                    </button>
+
+                                    {/* Nomor Halaman */}
+                                    {pageNumbers.map((num, i) => {
+                                        if (num === '...') {
+                                            return (
+                                                <span key={`dots-${i}`} className="px-2 text-xs text-zinc-400 font-bold">
+                                                    ...
+                                                </span>
+                                            );
+                                        }
+
+                                        const isActive = currentPage === num;
+                                        return (
+                                            <button
+                                                key={num}
+                                                type="button"
+                                                onClick={() => handlePageChange(num)}
+                                                className={`h-9 w-9 rounded-full text-xs font-bold transition cursor-pointer ${
+                                                    isActive
+                                                        ? 'bg-orange-600 text-white shadow-md shadow-orange-600/30'
+                                                        : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100'
+                                                }`}
+                                            >
+                                                {num}
+                                            </button>
+                                        );
+                                    })}
+
+                                    {/* Tombol Berikutnya */}
+                                    <button
+                                        type="button"
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        aria-label="Halaman berikutnya"
+                                        className="flex h-9 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 text-xs font-bold text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                                    >
+                                        <span className="hidden sm:inline">Berikutnya</span>
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Pembatas bergaya Vurasi Landing */}
+                    <div className="mt-16">
+                        <SectionDivider label="Bantuan & FAQ" />
                     </div>
 
                     {/* =========================================================
-                        4. KODE PROMO / VOUCHER
+                        SECTION FAQ / PERTANYAAN UMUM
                     ========================================================= */}
-                    <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200">
-                        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-                            <Tag className="w-4 h-4 text-orange-500" /> Gunakan Kode Voucher / Promo:
-                        </h2>
-                        <div className="flex gap-2.5">
-                            <input
-                                type="text"
-                                placeholder={`Kode voucher diskon untuk ${park?.name}...`}
-                                value={promoCode}
-                                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                className="flex-1 uppercase rounded-xl border border-slate-200 px-3.5 py-2 text-xs sm:text-sm font-mono font-bold focus:border-indigo-600 outline-none"
-                            />
-                            <button
-                                type="button"
-                                disabled={loadingPromo || !promoCode.trim()}
-                                onClick={applyPromo}
-                                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition disabled:opacity-50"
-                            >
-                                {loadingPromo ? 'Mengecek...' : 'Terapkan'}
-                            </button>
+                    <section className="mx-auto max-w-4xl px-4 sm:px-6">
+                        <div className="text-center mb-8">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-600">
+                                &sect; Panduan &amp; Bantuan
+                            </p>
+                            <h2 className="mt-1 font-anton text-3xl uppercase tracking-[0.02em] text-zinc-950 sm:text-4xl">
+                                Pertanyaan <span className="stroke-word">Umum</span>
+                            </h2>
+                            <p className="mt-2 text-xs text-zinc-500">Hal penting seputar proses pemesanan tiket di jaringan Vurasi.</p>
                         </div>
-                        {promoApplied && (
-                            <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
-                                <CheckCircle2 className="w-4 h-4" /> Kupon {promoApplied} aktif! Potongan Rp {new Intl.NumberFormat('id-ID').format(promoDiscount)}
-                            </p>
-                        )}
-                        {promoError && (
-                            <p className="text-xs font-semibold text-rose-600 mt-2 flex items-center gap-1">
-                                <AlertCircle className="w-4 h-4" /> {promoError}
-                            </p>
-                        )}
-                    </div>
 
-                </div>
+                        <div>
+                            {[
+                                {
+                                    q: 'Bagaimana cara memesan tiket wahana atau pameran seni?',
+                                    a: 'Pilih salah satu destinasi di atas, lalu Anda akan diarahkan ke halaman detail tempat tersebut untuk memilih tanggal kunjungan, kategori tiket, dan menyelesaikan pembayaran secara aman.',
+                                },
+                                {
+                                    q: 'Apakah saya bisa mengubah tanggal kunjungan (reschedule)?',
+                                    a: 'Ya, reschedule dapat dilakukan secara gratis melalui menu "Cek Pesanan" di pojok atas, selama kuota tanggal tujuan baru masih tersedia.',
+                                },
+                                {
+                                    q: 'Bagaimana cara menggunakan E-Tiket di gerbang masuk?',
+                                    a: 'Cukup tunjukkan Barcode / QR Code E-Tiket dari layar smartphone kepada petugas turnstile. Anda tidak perlu mencetak tiket fisik.',
+                                },
+                                {
+                                    q: 'Apakah bisa memesan tiket tanpa memiliki akun?',
+                                    a: 'Bisa. Pengguna dapat memesan sebagai tamu (Guest). E-Tiket otomatis dikirimkan ke email Anda dan dapat dilihat kapan saja lewat tombol Cek Pesanan.',
+                                },
+                            ].map((faq, idx) => (
+                                <FaqItem key={idx} faq={faq} idx={idx} defaultOpen={idx === 0} />
+                            ))}
+                        </div>
+                    </section>
 
-                {/* BOTTOM FIXED CHECKOUT BAR */}
-                {totalQuantity > 0 && (
-                    <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-4 shadow-2xl z-40">
-                        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-                            <div>
-                                <span className="text-[11px] text-slate-500 block">
-                                    Total ({totalQuantity} Tiket) • {new Date(selectedDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                </span>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-2xl font-black text-indigo-600">
-                                        Rp {new Intl.NumberFormat('id-ID').format(total)}
-                                    </span>
-                                    {promoDiscount > 0 && (
-                                        <span className="text-xs text-slate-400 line-through">
-                                            Rp {new Intl.NumberFormat('id-ID').format(subtotal)}
-                                        </span>
-                                    )}
+                    {/* =========================================================
+                        FOOTER VURASI (Identik dengan Landing Page)
+                    ========================================================= */}
+                    <footer className="mt-20 bg-zinc-950 text-zinc-400">
+                        <div className="mx-auto max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:px-8">
+                            <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <img
+                                            src="/images/vurasi-logo.png"
+                                            alt="Vurasi"
+                                            width="1180"
+                                            height="490"
+                                            className="h-7 w-auto"
+                                        />
+                                        <span className="text-sm italic leading-none text-orange-500">paviliun seni</span>
+                                    </div>
+                                    <p className="text-xs leading-relaxed text-zinc-500">
+                                        Platform resmi pemesanan tiket multi-park, theme park &amp; galeri pameran seni interaktif Indonesia.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs uppercase tracking-widest text-white font-bold">Destinasi Terpopuler</h4>
+                                    <ul className="mt-3 space-y-2 text-xs">
+                                        {parks.slice(0, 5).map((p) => (
+                                            <li key={p.id}>
+                                                <Link
+                                                    href={`/parks/${p.slug || p.id}`}
+                                                    className="hover:text-white transition"
+                                                >
+                                                    {p.name}
+                                                </Link>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs uppercase tracking-widest text-white font-bold">Akses &amp; Layanan</h4>
+                                    <ul className="mt-3 space-y-2 text-xs">
+                                        <li>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLookupModalOpen(true)}
+                                                className="hover:text-white cursor-pointer transition"
+                                            >
+                                                Cek E-Tiket Saya
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <Link href="/#faq" className="hover:text-white transition">
+                                                Kebijakan &amp; Refund
+                                            </Link>
+                                        </li>
+                                        <li>
+                                            <Link href="/scanner" className="hover:text-white transition">
+                                                Gate Scanner Petugas
+                                            </Link>
+                                        </li>
+                                        <li>
+                                            <Link href="/login" className="hover:text-white font-semibold text-orange-400 transition">
+                                                Login Akun / Pengelola
+                                            </Link>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs uppercase tracking-widest text-white font-bold">Keamanan Transaksi</h4>
+                                    <p className="mt-3 text-xs leading-relaxed text-zinc-500">
+                                        Token QR unik terenkripsi anti-duplikasi, pembayaran gateway resmi Midtrans, dan kuota gerbang terverifikasi real-time.
+                                    </p>
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={handleCheckout}
-                                className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition"
-                            >
-                                Lanjut ke Pembayaran <ChevronRight className="w-4 h-4" />
-                            </button>
+                            <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6 text-[11px] uppercase tracking-widest text-zinc-600">
+                                <span>&copy; {new Date().getFullYear()} Vurasi MultiPark Ticketing System</span>
+                                <span className="normal-case italic">"ruang terbuka untuk seni yang bercahaya"</span>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    </footer>
 
-            </div>
+                    {/* Tombol Kembali ke Atas */}
+                    {scrolled && (
+                        <button
+                            type="button"
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                            aria-label="Kembali ke atas"
+                            className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-zinc-900 bg-zinc-900 text-white shadow-xl hover:bg-orange-600 transition cursor-pointer"
+                        >
+                            <ArrowUp className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
+            </MotionConfig>
+
+            {/* Modal Cek Pesanan (Tiket Saya) */}
+            <MyTicketsModal open={lookupModalOpen} onClose={() => setLookupModalOpen(false)} />
         </>
     );
 }

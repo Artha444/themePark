@@ -18,18 +18,63 @@ class TicketController extends Controller
         $date = $request->query('date', Carbon::today()->format('Y-m-d'));
         $parkId = $request->query('park_id');
 
-        $parks = Park::where('is_active', true)
-            ->select(['id', 'name', 'category', 'slug', 'location_address', 'open_time', 'close_time', 'image_url', 'default_daily_capacity'])
+        $today = Carbon::today()->format('Y-m-d');
+
+        // Pre-fetch harga termurah asli dari ticket_tiers aktif milik masing-masing park
+        $tierMinPrices = \App\Models\TicketTier::where('is_active', true)
+            ->groupBy('park_id')
+            ->selectRaw('park_id, MIN(weekday_price) as min_price')
+            ->pluck('min_price', 'park_id');
+
+        // Pre-fetch minimum ticket prices dari DailyInventory (jika ada harga promo/harian aktif)
+        $inventoryMinPrices = DailyInventory::query()
+            ->join('ticket_tiers', 'daily_inventories.ticket_tier_id', '=', 'ticket_tiers.id')
+            ->where('daily_inventories.visit_date', '>=', $today)
+            ->where('daily_inventories.is_open', true)
+            ->where('ticket_tiers.is_active', true)
+            ->where('daily_inventories.price', '>', 0)
+            ->groupBy('ticket_tiers.park_id')
+            ->selectRaw('ticket_tiers.park_id, MIN(daily_inventories.price) as min_price')
+            ->pluck('min_price', 'park_id');
+
+        $parkModels = Park::where('is_active', true)
+            ->select(['id', 'name', 'category', 'slug', 'location_address', 'city', 'open_time', 'close_time', 'image_url', 'default_daily_capacity'])
             ->orderBy('name')
             ->get();
 
         $selectedPark = null;
         if ($parkId) {
-            $selectedPark = $parks->firstWhere('id', $parkId) ?: $parks->firstWhere('slug', $parkId);
+            $selectedPark = $parkModels->firstWhere('id', $parkId) ?: $parkModels->firstWhere('slug', $parkId);
         }
-        if (! $selectedPark && $parks->isNotEmpty()) {
-            $selectedPark = $parks->first();
+        if (! $selectedPark && $parkModels->isNotEmpty()) {
+            $selectedPark = $parkModels->first();
         }
+
+        $parks = $parkModels->map(function ($p) use ($tierMinPrices, $inventoryMinPrices) {
+            $category = $p->category ?: (str_contains(strtolower($p->name), 'art') || str_contains(strtolower($p->name), 'pavilion') ? 'Art & Light Exhibition' : 'Theme Park & Wahana');
+            $isArt = str_contains(strtolower($category), 'art') || str_contains(strtolower($p->name), 'art');
+            $defaultImageUrl = $isArt
+                ? 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80'
+                : 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=800&q=80';
+            $imageUrl = ! empty($p->image_url) ? $p->image_url : $defaultImageUrl;
+
+            // Prioritaskan harga termurah asli dari tier tiket aktif milik park tersebut
+            $realMinPrice = $tierMinPrices->get($p->id) ?? $inventoryMinPrices->get($p->id) ?? null;
+
+            return [
+                'id' => $p->id,
+                'slug' => $p->slug,
+                'name' => $p->name,
+                'category' => $category,
+                'location_address' => $p->location_address,
+                'city' => $p->city,
+                'open_time' => $p->open_time,
+                'close_time' => $p->close_time,
+                'default_daily_capacity' => $p->default_daily_capacity,
+                'image_url' => $imageUrl,
+                'min_price' => $realMinPrice,
+            ];
+        });
 
         // Get unique categories for filtering
         $categories = $parks->pluck('category')->filter()->unique()->values();

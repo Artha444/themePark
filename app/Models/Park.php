@@ -18,6 +18,10 @@ class Park extends Model
         'description',
         'image_url',
         'location_address',
+        'city',
+        'latitude',
+        'longitude',
+        'maps_place_name',
         'open_time',
         'close_time',
         'default_daily_capacity',
@@ -60,5 +64,15 @@ class Park extends Model
     public function gates()
     {
         return $this->hasMany(Gate::class);
+    }
+
+    /**
+     * Admin Park yang bertanggung jawab atas destinasi ini.
+     * Relasi satu-ke-satu: satu park hanya punya satu Admin Park.
+     */
+    public function admin()
+    {
+        return $this->hasOne(User::class, 'assigned_park_id')
+            ->where('role', 'PARK_ADMIN');
     }
 }

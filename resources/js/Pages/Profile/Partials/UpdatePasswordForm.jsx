@@ -6,6 +6,17 @@ import { Transition } from '@headlessui/react';
 import { useForm } from '@inertiajs/react';
 import { useRef } from 'react';
 
+/* Gaya input gelap bertema Vurasi (menimpa style terang TextInput) */
+const darkInput =
+    '!min-h-[44px] !rounded-xl !border-white/15 !bg-white/[0.06] !text-zinc-100 !shadow-none placeholder:!text-zinc-500 focus:!border-orange-600 focus:!ring-orange-600';
+
+/* Gaya tombol utama oranye (menimpa style terang PrimaryButton) */
+const darkPrimary =
+    '!min-h-[44px] !rounded-full !bg-orange-600 !px-6 !py-3 !text-xs !font-bold !uppercase !tracking-widest !text-white !shadow-lg !shadow-orange-600/40 hover:!bg-orange-500 focus:!ring-orange-600 focus:!ring-offset-zinc-950';
+
+const darkLabel =
+    '!text-[11px] !font-bold !uppercase !tracking-widest !text-zinc-400';
+
 export default function UpdatePasswordForm({ className = '' }) {
     const passwordInput = useRef();
     const currentPasswordInput = useRef();
@@ -46,22 +57,17 @@ export default function UpdatePasswordForm({ className = '' }) {
 
     return (
         <section className={className}>
-            <header>
-                <h2 className="text-lg font-medium text-gray-900">
-                    Update Password
-                </h2>
+            <p className="text-sm leading-relaxed text-zinc-400">
+                Pastikan akun memakai kata sandi yang panjang dan acak agar
+                tetap aman.
+            </p>
 
-                <p className="mt-1 text-sm text-gray-600">
-                    Ensure your account is using a long, random password to stay
-                    secure.
-                </p>
-            </header>
-
-            <form onSubmit={updatePassword} className="mt-6 space-y-6">
+            <form onSubmit={updatePassword} className="mt-5 space-y-5">
                 <div>
                     <InputLabel
                         htmlFor="current_password"
-                        value="Current Password"
+                        value="Kata Sandi Saat Ini"
+                        className={darkLabel}
                     />
 
                     <TextInput
@@ -72,7 +78,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('current_password', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className={`mt-2 block w-full ${darkInput}`}
                         autoComplete="current-password"
                     />
 
@@ -83,7 +89,11 @@ export default function UpdatePasswordForm({ className = '' }) {
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="password" value="New Password" />
+                    <InputLabel
+                        htmlFor="password"
+                        value="Kata Sandi Baru"
+                        className={darkLabel}
+                    />
 
                     <TextInput
                         id="password"
@@ -91,7 +101,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         value={data.password}
                         onChange={(e) => setData('password', e.target.value)}
                         type="password"
-                        className="mt-1 block w-full"
+                        className={`mt-2 block w-full ${darkInput}`}
                         autoComplete="new-password"
                     />
 
@@ -101,7 +111,8 @@ export default function UpdatePasswordForm({ className = '' }) {
                 <div>
                     <InputLabel
                         htmlFor="password_confirmation"
-                        value="Confirm Password"
+                        value="Konfirmasi Kata Sandi"
+                        className={darkLabel}
                     />
 
                     <TextInput
@@ -111,7 +122,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('password_confirmation', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className={`mt-2 block w-full ${darkInput}`}
                         autoComplete="new-password"
                     />
 
@@ -121,8 +132,10 @@ export default function UpdatePasswordForm({ className = '' }) {
                     />
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                <div className="flex items-center gap-4 pt-1">
+                    <PrimaryButton disabled={processing} className={darkPrimary}>
+                        Simpan Sandi
+                    </PrimaryButton>
 
                     <Transition
                         show={recentlySuccessful}
@@ -131,8 +144,8 @@ export default function UpdatePasswordForm({ className = '' }) {
                         leave="transition ease-in-out"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-gray-600">
-                            Saved.
+                        <p className="text-sm font-semibold text-emerald-300">
+                            Tersimpan.
                         </p>
                     </Transition>
                 </div>

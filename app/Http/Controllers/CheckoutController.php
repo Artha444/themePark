@@ -15,6 +15,7 @@ use App\Models\QuotaReservation;
 use App\Services\MidtransService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -29,7 +30,7 @@ class CheckoutController extends Controller
         protected MidtransService $midtransService
     ) {}
 
-    public function index(Request $request): Response|\Illuminate\Http\RedirectResponse
+    public function index(Request $request): Response|RedirectResponse
     {
         $items = json_decode((string) $request->query('items', '[]'), true);
         $date = (string) $request->query('date', Carbon::today()->format('Y-m-d'));
@@ -99,7 +100,7 @@ class CheckoutController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse|\Illuminate\Http\RedirectResponse
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         $request->validate([
             'customer_name' => 'required|string|max:120',
@@ -137,7 +138,7 @@ class CheckoutController extends Controller
                     ->firstOrFail();
 
                 // Dapatkan park_id asli dari tiket yang dipesan
-                if (!$orderParkId) {
+                if (! $orderParkId) {
                     $orderParkId = $inv->ticketTier->park_id;
                 }
 
@@ -159,7 +160,7 @@ class CheckoutController extends Controller
             }
 
             // Fallback park jika belum terdeteksi
-            if (!$orderParkId) {
+            if (! $orderParkId) {
                 $orderParkId = Park::where('is_active', true)->value('id');
             }
 
@@ -169,7 +170,7 @@ class CheckoutController extends Controller
             if ($request->promo_code) {
                 $promo = Promotion::where('code', strtoupper((string) $request->promo_code))->where('is_active', true)->first();
                 if ($promo) {
-                    if (!is_null($promo->park_id) && $promo->park_id !== $orderParkId) {
+                    if (! is_null($promo->park_id) && $promo->park_id !== $orderParkId) {
                         abort(422, "Kupon promo {$promo->code} tidak berlaku untuk destinasi ini.");
                     }
 
@@ -187,7 +188,7 @@ class CheckoutController extends Controller
             }
 
             $total = max(0, $subtotal - $discount);
-            $orderCode = 'VRS-' . strtoupper(Str::random(8));
+            $orderCode = 'VRS-'.strtoupper(Str::random(8));
 
             // Create Order with PENDING status initially
             $order = Order::create([
@@ -275,7 +276,7 @@ class CheckoutController extends Controller
                 ];
             }
 
-            $snapToken = $this->midtransService->createSnapToken([
+            $snapResponse = $this->midtransService->createSnapTransaction([
                 'order_code' => $order->order_code,
                 'total_amount' => $order->total_amount,
                 'customer_name' => $order->customer_name,
@@ -284,9 +285,12 @@ class CheckoutController extends Controller
                 'items' => $snapItems,
             ]);
 
+            $snapToken = $snapResponse->token ?? null;
+            $midtransRedirectUrl = $snapResponse->redirect_url ?? null;
+
             $order->update(['snap_token' => $snapToken]);
         } catch (\Throwable $e) {
-            Log::error('Failed to create Midtrans Snap Token: ' . $e->getMessage(), [
+            Log::error('Failed to create Midtrans Snap Token: '.$e->getMessage(), [
                 'order' => $order->order_code,
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -294,7 +298,7 @@ class CheckoutController extends Controller
             if ($request->wantsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Gagal menghubungkan ke Midtrans: ' . $e->getMessage(),
+                    'message' => 'Gagal menghubungkan ke Midtrans: '.$e->getMessage(),
                 ], 500);
             }
 
@@ -306,6 +310,7 @@ class CheckoutController extends Controller
                 'success' => true,
                 'order_code' => $order->order_code,
                 'snap_token' => $snapToken,
+                'midtrans_redirect_url' => $midtransRedirectUrl,
                 'redirect_url' => route('tickets.order', ['order_code' => $order->order_code]),
             ]);
         }
@@ -342,7 +347,7 @@ class CheckoutController extends Controller
                 }
             } catch (\Throwable $e) {
                 // If Midtrans throws 404 (transaction not found yet), it means user hasn't paid or completed payment yet
-                Log::debug('Midtrans transaction check: ' . $e->getMessage());
+                Log::debug('Midtrans transaction check: '.$e->getMessage());
             }
         }
 
@@ -363,7 +368,7 @@ class CheckoutController extends Controller
 
         $payload = $request->all();
         $paymentType = $payload['payment_type'] ?? 'midtrans_snap';
-        $transactionId = $payload['transaction_id'] ?? ('SNAP-' . time());
+        $transactionId = $payload['transaction_id'] ?? ('SNAP-'.time());
         $fraudStatus = $payload['fraud_status'] ?? 'accept';
 
         $notificationCtrl = app(MidtransNotificationController::class);
@@ -386,7 +391,7 @@ class CheckoutController extends Controller
             ->where('customer_email', trim((string) $request->email))
             ->first();
 
-        if (!$order) {
+        if (! $order) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pesanan dengan kode dan email tersebut tidak ditemukan. Silakan periksa kembali data Anda.',

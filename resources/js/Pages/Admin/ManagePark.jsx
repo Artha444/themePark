@@ -1,13 +1,15 @@
 import { useState, Fragment, useMemo } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
+import AdminLayout from '@/Layouts/AdminLayout';
+import LocationPicker from '@/Components/LocationPicker';
 import {
     DollarSign, Ticket, Users, ArrowLeft, Plus, Calendar,
     Tag, Wrench, Edit3, Building2, MapPin, Clock, Image as ImageIcon, Sparkles, Trash2,
     Check, ChevronLeft, ChevronRight, AlertCircle, Info, ShieldAlert
 } from 'lucide-react';
 
-export default function AdminDashboard({
+export default function ManagePark({
     parks = [],
     park,
     today,
@@ -20,9 +22,6 @@ export default function AdminDashboard({
     dailyInventories = [],
     attractions = [],
     zones = [],
-    promotions = [],
-    recentOrders = [],
-    liveCheckIns = [],
     nationalHolidays = [],
 }) {
     const [activeTab, setActiveTab] = useState('schedule');
@@ -31,11 +30,14 @@ export default function AdminDashboard({
     // Modal States
     const [attractionModalOpen, setAttractionModalOpen] = useState(false);
     const [ticketModalOpen, setTicketModalOpen] = useState(false);
-    const [promoModalOpen, setPromoModalOpen] = useState(false);
     const [newParkModalOpen, setNewParkModalOpen] = useState(false);
     const [editParkModalOpen, setEditParkModalOpen] = useState(false);
+
+    // State modal Manajemen Hari Libur Nasional & Kupon Promo
+    // (dipakai oleh JSX/handler di halaman ini; wajib dideklarasikan agar tidak ReferenceError)
     const [holidayModalOpen, setHolidayModalOpen] = useState(false);
     const [editingHoliday, setEditingHoliday] = useState(null);
+    const [promoModalOpen, setPromoModalOpen] = useState(false);
 
     // Form Holiday
     const [holidayForm, setHolidayForm] = useState({
@@ -50,6 +52,10 @@ export default function AdminDashboard({
         description: '',
         image_url: '',
         location_address: '',
+        city: '',
+        latitude: null,
+        longitude: null,
+        maps_place_name: '',
         open_time: '09:00',
         close_time: '21:00',
         default_daily_capacity: 5000,
@@ -61,6 +67,10 @@ export default function AdminDashboard({
         description: park?.description || '',
         image_url: park?.image_url || '',
         location_address: park?.location_address || '',
+        city: park?.city || '',
+        latitude: park?.latitude || null,
+        longitude: park?.longitude || null,
+        maps_place_name: park?.maps_place_name || '',
         open_time: park?.open_time?.substring(0, 5) || '09:00',
         close_time: park?.close_time?.substring(0, 5) || '21:00',
         default_daily_capacity: park?.default_daily_capacity || 5000,
@@ -113,11 +123,11 @@ export default function AdminDashboard({
     // Form New Promotion
     const [promoForm, setPromoForm] = useState({
         code: '',
-        scope: 'park',          // 'park' = hanya park ini | 'global' = semua park
+        scope: isSuperAdmin ? 'global' : 'park',
         park_id: park?.id || '',
         discount_type: 'PERCENTAGE',
-        discount_value: 20,
-        min_order_amount: 150000,
+        discount_value: '',
+        min_order_amount: '',
         valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     });
 
@@ -128,6 +138,10 @@ export default function AdminDashboard({
             description: park.description || '',
             image_url: park.image_url || '',
             location_address: park.location_address,
+            city: park.city || '',
+            latitude: park.latitude || null,
+            longitude: park.longitude || null,
+            maps_place_name: park.maps_place_name || '',
             open_time: park.open_time?.substring(0, 5) || '09:00',
             close_time: park.close_time?.substring(0, 5) || '21:00',
             default_daily_capacity: park.default_daily_capacity || 5000,
@@ -137,11 +151,11 @@ export default function AdminDashboard({
 
     // Handlers
     const handleParkSwitch = (parkId) => {
-        router.get(`/admin?park_id=${parkId}`, {}, { preserveScroll: true });
+        router.get(`/admin/manage?park_id=${parkId}`, {}, { preserveScroll: true });
     };
 
     const handleRoleSwitch = (newRole) => {
-        router.get(`/admin?as_role=${newRole}`, {}, { preserveScroll: true });
+        router.get(`/admin/manage?as_role=${newRole}`, {}, { preserveScroll: true });
     };
 
     const handleAttractionStatusChange = (attractionId, newStatus) => {
@@ -192,17 +206,37 @@ export default function AdminDashboard({
     // Submits
     const submitNewPark = (e) => {
         e.preventDefault();
+        if (!newParkForm.latitude || !newParkForm.longitude) {
+            alert('Mohon pilih lokasi yang valid di peta terlebih dahulu!');
+            return;
+        }
         router.post('/admin/parks', newParkForm, {
             preserveScroll: true,
             onSuccess: () => {
                 setNewParkModalOpen(false);
-                setNewParkForm({ name: '', description: '', location_address: '', open_time: '09:00', close_time: '21:00', default_daily_capacity: 5000 });
+                setNewParkForm({
+                    name: '',
+                    description: '',
+                    image_url: '',
+                    location_address: '',
+                    city: '',
+                    latitude: null,
+                    longitude: null,
+                    maps_place_name: '',
+                    open_time: '09:00',
+                    close_time: '21:00',
+                    default_daily_capacity: 5000,
+                });
             },
         });
     };
 
     const submitEditPark = (e) => {
         e.preventDefault();
+        if (!editParkForm.latitude || !editParkForm.longitude) {
+            alert('Mohon pilih lokasi yang valid di peta terlebih dahulu!');
+            return;
+        }
         router.post(`/admin/parks/${park?.id}/update`, editParkForm, {
             preserveScroll: true,
             onSuccess: () => setEditParkModalOpen(false),
@@ -330,16 +364,26 @@ export default function AdminDashboard({
 
     const submitPromo = (e) => {
         e.preventDefault();
-        // Jika Park Admin, selalu scope ke park ini
         const payload = {
             ...promoForm,
-            park_id: promoForm.scope === 'park' ? park?.id : null,
+            scope: isSuperAdmin ? 'global' : 'park',
+            park_id: isSuperAdmin ? null : park?.id,
+            discount_value: Number(promoForm.discount_value) || 0,
+            min_order_amount: Number(promoForm.min_order_amount) || 0,
         };
         router.post('/admin/promotions', payload, {
             preserveScroll: true,
             onSuccess: () => {
                 setPromoModalOpen(false);
-                setPromoForm({ code: '', scope: 'park', park_id: park?.id || '', discount_type: 'PERCENTAGE', discount_value: 20, min_order_amount: 150000, valid_until: '' });
+                setPromoForm({
+                    code: '',
+                    scope: isSuperAdmin ? 'global' : 'park',
+                    park_id: isSuperAdmin ? '' : (park?.id || ''),
+                    discount_type: 'PERCENTAGE',
+                    discount_value: '',
+                    min_order_amount: '',
+                    valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                });
             },
         });
     };
@@ -387,104 +431,27 @@ export default function AdminDashboard({
 
     return (
         <>
-            <Head title={`Admin Dashboard | ${park?.name || 'Vurasi'}`} />
+            <Head title={`Admin Pengaturan Park & Tiket | ${park?.name || 'Vurasi'}`} />
 
-            <div className="min-h-screen bg-slate-100 text-slate-900 font-sans pb-24">
-                
-                {/* TOP BAR SIMULASI ROLE (SUPER ADMIN VS PARK ADMIN) */}
-                <div className="bg-slate-950 text-slate-300 px-6 sm:px-8 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between text-xs gap-3">
-                    <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-400">Status Akses:</span>
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold uppercase tracking-wider text-[11px] ${
-                            isSuperAdmin ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                        }`}>
-                            {isSuperAdmin ? '👑 Admin Pusat (Super Admin)' : `🏢 Park Admin (${park?.name?.split(' ')[0]})`}
-                        </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Simulasikan Role:</span>
-                        <button
-                            onClick={() => handleRoleSwitch('SUPER_ADMIN')}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                                isSuperAdmin ? 'bg-amber-500 text-slate-950 font-extrabold shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                            }`}
+            <AdminLayout
+                parks={parks}
+                park={park}
+                isSuperAdmin={isSuperAdmin}
+                adminRole={adminRole}
+            >
+                {/* Tombol Kembali ke Kelola Park Khusus Super Admin */}
+                {isSuperAdmin && (
+                    <div className="mb-4">
+                        <Link
+                            href="/admin/manage"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-2xs transition"
                         >
-                            👑 Mode Super Admin
-                        </button>
-                        <button
-                            onClick={() => handleRoleSwitch('PARK_ADMIN')}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                                !isSuperAdmin ? 'bg-blue-500 text-white font-extrabold shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                            }`}
-                        >
-                            🏢 Mode Park Admin
-                        </button>
-                    </div>
-                </div>
-
-                {/* NAVBAR ADMIN UTAMA */}
-                <header className="bg-slate-900 text-white px-6 sm:px-8 py-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-md">
-                    <div className="flex items-center gap-3">
-                        <Link href="/" className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 hover:text-white transition">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <div>
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-orange-400">
-                                {isSuperAdmin ? 'MANAGEMENT SYSTEM — ADMIN PUSAT' : 'MANAGEMENT SYSTEM — PARK ADMIN'}
-                            </span>
-                            <h1 className="font-extrabold text-lg text-white">
-                                {park?.name || 'Vurasi Admin'}
-                            </h1>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 flex-wrap">
-                        {/* Selector Park (Untuk Super Admin) */}
-                        {isSuperAdmin && parks.length > 1 && (
-                            <div className="flex items-center gap-2 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700">
-                                <span className="text-xs text-slate-400 font-medium hidden sm:inline">Pilih Destinasi:</span>
-                                <select
-                                    value={park?.id || ''}
-                                    onChange={(e) => handleParkSwitch(e.target.value)}
-                                    className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer"
-                                >
-                                    {parks.map((p) => (
-                                        <option key={p.id} value={p.id} className="bg-slate-900 text-white">
-                                            {p.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        {/* TOMBOL EDIT NAMA TEMPAT (BISA UNTUK SUPER ADMIN & PARK ADMIN) */}
-                        <button
-                            onClick={openEditParkModal}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition"
-                        >
-                            <Edit3 className="w-4 h-4" />
-                            <span>Edit Nama Tempat</span>
-                        </button>
-
-                        {/* Tombol Tambah Tempat Baru (Khusus Admin Pusat / Super Admin) */}
-                        {isSuperAdmin && (
-                            <button
-                                onClick={() => setNewParkModalOpen(true)}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span>+ Tambah Tempat Baru</span>
-                            </button>
-                        )}
-
-                        <Link href="/scanner" className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl border border-slate-700 transition">
-                            Gate Scanner
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                            <span>Kembali ke Kelola Semua Park</span>
                         </Link>
                     </div>
-                </header>
-
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+                )}
+                <div className="space-y-6">
                     
                     {/* HERO CARD INFORMASI TEMPAT & TOMBOL EDIT */}
                     <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 overflow-hidden">
@@ -510,9 +477,11 @@ export default function AdminDashboard({
 
                             <div className="space-y-2">
                                 <div className="flex items-center gap-2.5">
-                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-orange-100 text-orange-800">
-                                        Destinasi Aktif
-                                    </span>
+                                    {isSuperAdmin && (
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-orange-100 text-orange-800">
+                                            Destinasi Aktif
+                                        </span>
+                                    )}
                                     <span className="text-xs text-slate-400">ID: {park?.id?.substring(0, 8)}...</span>
                                 </div>
 
@@ -529,6 +498,16 @@ export default function AdminDashboard({
                                         <MapPin className="w-4 h-4 text-orange-600" />
                                         {park?.location_address}
                                     </span>
+                                    {park?.latitude && park?.longitude && (
+                                        <a
+                                            href={`https://www.google.com/maps/search/?api=1&query=${park.latitude},${park.longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md"
+                                        >
+                                            Buka di Google Maps ↗
+                                        </a>
+                                    )}
                                     <span className="flex items-center gap-1.5">
                                         <Clock className="w-4 h-4 text-orange-600" />
                                         Buka: {park?.open_time?.substring(0, 5)} - {park?.close_time?.substring(0, 5)} WIB
@@ -541,7 +520,7 @@ export default function AdminDashboard({
                             </div>
                         </div>
 
-                        {/* Tombol Besar Edit Profil Tempat */}
+                    {/* Tombol Besar Edit Profil Tempat */}
                         <div className="shrink-0 flex flex-col sm:flex-row gap-3">
                             <button
                                 onClick={openEditParkModal}
@@ -645,42 +624,6 @@ export default function AdminDashboard({
                             >
                                 <Wrench className="w-4 h-4" />
                                 Atur Wahana &amp; Atraksi ({attractions.length})
-                            </button>
-                            
-                            {/* Tab Promo Kini Dapat Diakses Super Admin & Park Admin */}
-                            <button
-                                onClick={() => setActiveTab('promos')}
-                                className={`pb-4 text-sm font-bold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
-                                    activeTab === 'promos'
-                                        ? 'border-orange-600 text-orange-600'
-                                        : 'border-transparent text-slate-400 hover:text-slate-700'
-                                }`}
-                            >
-                                <Tag className="w-4 h-4" />
-                                Atur Kupon Promo ({promotions.length})
-                            </button>
-
-                            <button
-                                onClick={() => setActiveTab('orders')}
-                                className={`pb-4 text-sm font-bold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
-                                    activeTab === 'orders'
-                                        ? 'border-orange-600 text-orange-600'
-                                        : 'border-transparent text-slate-400 hover:text-slate-700'
-                                }`}
-                            >
-                                Pesanan &amp; Log Scan ({recentOrders.length})
-                            </button>
-
-                            <button
-                                onClick={() => setActiveTab('holidays')}
-                                className={`pb-4 text-sm font-bold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
-                                    activeTab === 'holidays'
-                                        ? 'border-orange-600 text-orange-600'
-                                        : 'border-transparent text-slate-400 hover:text-slate-700'
-                                }`}
-                            >
-                                <Sparkles className="w-4 h-4 text-rose-500" />
-                                Kalender Libur Nasional ({nationalHolidays.length})
                             </button>
                         </div>
 
@@ -1298,262 +1241,6 @@ export default function AdminDashboard({
                                 </div>
                             </div>
                         )}
-
-                        {/* =========================================================
-                            TAB 4: ATUR KUPON PROMO (SUPER ADMIN & PARK ADMIN)
-                        ========================================================= */}
-                        {activeTab === 'promos' && (
-                            <div>
-                                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div>
-                                        <h3 className="text-lg font-extrabold text-slate-900">
-                                            Manajemen Kupon Promo ({park?.name})
-                                        </h3>
-                                        <p className="text-xs text-slate-500 mt-0.5">
-                                            Terbitkan voucher kode promo baru atau aktifkan/nonaktifkan promo yang sedang berjalan.
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => setPromoModalOpen(true)}
-                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        Terbitkan Kupon Promo
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {promotions.map((promo) => (
-                                        <div key={promo.id} className="rounded-2xl border border-slate-200 p-5 bg-slate-50/50 flex flex-col justify-between space-y-4">
-                                            <div>
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-xs font-bold uppercase px-2.5 py-0.5 rounded-lg bg-orange-100 text-orange-800">
-                                                        {promo.discount_type === 'PERCENTAGE' ? `Diskon ${promo.discount_value}%` : `Potongan Rp ${promo.discount_value.toLocaleString()}`}
-                                                    </span>
-                                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                                                        promo.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
-                                                    }`}>
-                                                        {promo.is_active ? 'AKTIF' : 'NONAKTIF'}
-                                                    </span>
-                                                </div>
-                                                <h4 className="font-mono text-2xl font-black text-slate-900">{promo.code}</h4>
-
-                                                {/* Badge Ruang Lingkup Promo */}
-                                                <div className="mt-2">
-                                                    {promo.park_id ? (
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                                                            🏟 Khusus: {promo.park?.name || 'Park Ini'}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
-                                                            🌐 Global — Berlaku di Semua Park
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <p className="text-xs text-slate-500 mt-2">
-                                                    Min. order: Rp {new Intl.NumberFormat('id-ID').format(promo.min_order_amount || 0)}
-                                                </p>
-                                                <p className="text-[11px] text-slate-400 mt-0.5">
-                                                    Berlaku s/d: {new Date(promo.valid_until).toLocaleDateString('id-ID')}
-                                                </p>
-                                            </div>
-
-                                            <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-                                                <button
-                                                    onClick={() => handleTogglePromo(promo.id)}
-                                                    className={`w-full py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                                                        promo.is_active
-                                                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                                    }`}
-                                                >
-                                                    {promo.is_active ? 'Nonaktifkan Kupon' : 'Aktifkan Kupon'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* =========================================================
-                            TAB 5: PESANAN & LOG SCAN
-                        ========================================================= */}
-                        {activeTab === 'orders' && (
-                            <div className="space-y-8">
-                                <div>
-                                    <h3 className="text-base font-extrabold text-slate-900 mb-3">Pesanan Terbaru Masuk</h3>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs border-collapse">
-                                            <thead>
-                                                <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase">
-                                                    <th className="py-3 px-3">Kode Pesanan</th>
-                                                    <th className="py-3 px-3">Pemesan</th>
-                                                    <th className="py-3 px-3">Total</th>
-                                                    <th className="py-3 px-3">Status</th>
-                                                    <th className="py-3 px-3">Waktu</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {recentOrders.map((order) => (
-                                                    <tr key={order.id} className="hover:bg-slate-50/80">
-                                                        <td className="py-3 px-3 font-mono font-bold text-slate-900">{order.order_code}</td>
-                                                        <td className="py-3 px-3">
-                                                            <span className="font-semibold block text-slate-800">{order.customer_name}</span>
-                                                            <span className="text-[11px] text-slate-400">{order.customer_email}</span>
-                                                        </td>
-                                                        <td className="py-3 px-3 font-bold text-slate-900">Rp {Number(order.total_amount).toLocaleString('id-ID')}</td>
-                                                        <td className="py-3 px-3">
-                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                                                                order.status === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                                                            }`}>{order.status}</span>
-                                                        </td>
-                                                        <td className="py-3 px-3 text-slate-500">
-                                                            {new Date(order.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div className="pt-6 border-t border-slate-200">
-                                    <h3 className="text-base font-extrabold text-slate-900 mb-3">Live Stream Scan Turnstile Gerbang</h3>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs border-collapse">
-                                            <thead>
-                                                <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase">
-                                                    <th className="py-3 px-3">Waktu Scan</th>
-                                                    <th className="py-3 px-3">Kode Tiket</th>
-                                                    <th className="py-3 px-3">Gate</th>
-                                                    <th className="py-3 px-3">Petugas</th>
-                                                    <th className="py-3 px-3">Hasil</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {liveCheckIns.map((log) => (
-                                                    <tr key={log.id}>
-                                                        <td className="py-2.5 px-3 font-mono text-slate-600">{new Date(log.scan_time).toLocaleTimeString('id-ID')} WIB</td>
-                                                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{log.ticket?.ticket_code || '-'}</td>
-                                                        <td className="py-2.5 px-3 text-slate-700">{log.gate?.gate_name || 'Gerbang'}</td>
-                                                        <td className="py-2.5 px-3 text-slate-600">{log.staff_user?.full_name || 'Petugas'}</td>
-                                                        <td className="py-2.5 px-3">
-                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                                                                log.scan_result === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                                                            }`}>{log.scan_result}</span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* =========================================================
-                            TAB 6: KALENDER HARI LIBUR NASIONAL (CRUD)
-                        ========================================================= */}
-                        {activeTab === 'holidays' && (
-                            <div className="space-y-6">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div>
-                                        <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                                            <span>Kalender Hari Libur Nasional &amp; Cuti Bersama</span>
-                                            <span className="text-xs bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">
-                                                {nationalHolidays.length} Hari Terdaftar
-                                            </span>
-                                        </h3>
-                                        <p className="text-xs text-slate-500 mt-0.5">
-                                            Tanggal yang tercatat di sini otomatis memberlakukan tarif khusus <strong>Libur Nasional (Holiday Price)</strong> pada sistem tiket.
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={openAddHolidayModal}
-                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition shrink-0"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        Tambah Hari Libur
-                                    </button>
-                                </div>
-
-                                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white">
-                                    <table className="w-full text-left text-xs border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
-                                                <th className="py-3.5 px-4">Tanggal Libur</th>
-                                                <th className="py-3.5 px-4">Nama Hari Libur / Perayaan</th>
-                                                <th className="py-3.5 px-4">Keterangan Tambahan</th>
-                                                <th className="py-3.5 px-4 text-center">Status Tarif</th>
-                                                <th className="py-3.5 px-4 text-right">Aksi</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {nationalHolidays.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan="5" className="py-8 text-center text-slate-400">
-                                                        Belum ada tanggal libur nasional yang ditambahkan.
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                nationalHolidays.map((h) => {
-                                                    const dateStr = typeof h.holiday_date === 'string' ? h.holiday_date.substring(0, 10) : new Date(h.holiday_date).toISOString().substring(0, 10);
-                                                    const formattedDate = new Date(dateStr).toLocaleDateString('id-ID', {
-                                                        weekday: 'long',
-                                                        day: 'numeric',
-                                                        month: 'long',
-                                                        year: 'numeric'
-                                                    });
-                                                    return (
-                                                        <tr key={h.id} className="hover:bg-slate-50/80 transition">
-                                                            <td className="py-3.5 px-4">
-                                                                <span className="font-mono font-bold text-slate-900 block">{dateStr}</span>
-                                                                <span className="text-[11px] text-slate-400">{formattedDate}</span>
-                                                            </td>
-                                                            <td className="py-3.5 px-4">
-                                                                <span className="font-extrabold text-slate-900 text-sm block">{h.name}</span>
-                                                            </td>
-                                                            <td className="py-3.5 px-4 text-slate-500 max-w-xs">
-                                                                {h.description || '-'}
-                                                            </td>
-                                                            <td className="py-3.5 px-4 text-center">
-                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
-                                                                    <Sparkles className="w-3 h-3 text-rose-600" />
-                                                                    Tarif Libur Nasional
-                                                                </span>
-                                                            </td>
-                                                            <td className="py-3.5 px-4 text-right">
-                                                                <div className="inline-flex items-center gap-2">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => openEditHolidayModal(h)}
-                                                                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
-                                                                        title="Edit Libur"
-                                                                    >
-                                                                        <Edit3 className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => deleteHoliday(h.id)}
-                                                                        className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 transition"
-                                                                        title="Hapus Libur"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -1612,16 +1299,34 @@ export default function AdminDashboard({
                                             </div>
                                         )}
                                     </div>
+                                    {/* PENCARIAN & VALIDASI LOKASI PETA (GRATIS & TERVERIFIKASI) */}
+                                    <LocationPicker
+                                        initialAddress={newParkForm.location_address}
+                                        initialLat={newParkForm.latitude}
+                                        initialLng={newParkForm.longitude}
+                                        initialPlaceName={newParkForm.maps_place_name}
+                                        initialCity={newParkForm.city}
+                                        onChange={({ address, lat, lng, placeName, city }) => {
+                                            setNewParkForm((prev) => ({
+                                                ...prev,
+                                                location_address: address,
+                                                latitude: lat,
+                                                longitude: lng,
+                                                maps_place_name: placeName,
+                                                city: city || prev.city,
+                                            }));
+                                        }}
+                                    />
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Alamat Lengkap / Kota</label>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Kota (untuk tabel Overview Pusat)</label>
                                         <input
                                             type="text"
-                                            required
-                                            value={newParkForm.location_address}
-                                            onChange={(e) => setNewParkForm({ ...newParkForm, location_address: e.target.value })}
-                                            placeholder="Jl. Raya Puncak Km. 80, Bogor"
+                                            value={newParkForm.city}
+                                            onChange={(e) => setNewParkForm({ ...newParkForm, city: e.target.value })}
+                                            placeholder="contoh: Bogor"
                                             className="w-full border rounded-xl px-3.5 py-2.5 text-sm"
                                         />
+                                        <p className="text-[10px] text-slate-400 mt-1">Kosongkan untuk mengambil kota dari bagian akhir alamat.</p>
                                     </div>
                                     <div className="grid grid-cols-3 gap-3">
                                         <div>
@@ -1649,8 +1354,9 @@ export default function AdminDashboard({
                                             <input
                                                 type="number"
                                                 required
+                                                min="1"
                                                 value={newParkForm.default_daily_capacity}
-                                                onChange={(e) => setNewParkForm({ ...newParkForm, default_daily_capacity: Number(e.target.value) })}
+                                                onChange={(e) => setNewParkForm({ ...newParkForm, default_daily_capacity: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 0) })}
                                                 className="w-full border rounded-xl px-2.5 py-2 text-sm"
                                             />
                                         </div>
@@ -1724,13 +1430,31 @@ export default function AdminDashboard({
                                             </div>
                                         )}
                                     </div>
+                                    {/* PENCARIAN & VALIDASI LOKASI PETA (GRATIS & TERVERIFIKASI) */}
+                                    <LocationPicker
+                                        initialAddress={editParkForm.location_address}
+                                        initialLat={editParkForm.latitude}
+                                        initialLng={editParkForm.longitude}
+                                        initialPlaceName={editParkForm.maps_place_name}
+                                        initialCity={editParkForm.city}
+                                        onChange={({ address, lat, lng, placeName, city }) => {
+                                            setEditParkForm((prev) => ({
+                                                ...prev,
+                                                location_address: address,
+                                                latitude: lat,
+                                                longitude: lng,
+                                                maps_place_name: placeName,
+                                                city: city || prev.city,
+                                            }));
+                                        }}
+                                    />
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Alamat Lengkap</label>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Kota (untuk tabel Overview Pusat)</label>
                                         <input
                                             type="text"
-                                            required
-                                            value={editParkForm.location_address}
-                                            onChange={(e) => setEditParkForm({ ...editParkForm, location_address: e.target.value })}
+                                            value={editParkForm.city}
+                                            onChange={(e) => setEditParkForm({ ...editParkForm, city: e.target.value })}
+                                            placeholder="contoh: Bandung"
                                             className="w-full border rounded-xl px-3.5 py-2.5 text-sm focus:border-orange-500 outline-none"
                                         />
                                     </div>
@@ -1760,8 +1484,9 @@ export default function AdminDashboard({
                                             <input
                                                 type="number"
                                                 required
+                                                min="1"
                                                 value={editParkForm.default_daily_capacity}
-                                                onChange={(e) => setEditParkForm({ ...editParkForm, default_daily_capacity: Number(e.target.value) })}
+                                                onChange={(e) => setEditParkForm({ ...editParkForm, default_daily_capacity: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 0) })}
                                                 className="w-full border rounded-xl px-2.5 py-2 text-sm"
                                             />
                                         </div>
@@ -1841,8 +1566,9 @@ export default function AdminDashboard({
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Min. Tinggi Badan (cm)</label>
                                         <input
                                             type="number"
+                                            min="0"
                                             value={attractionForm.min_height_cm}
-                                            onChange={(e) => setAttractionForm({ ...attractionForm, min_height_cm: Number(e.target.value) })}
+                                            onChange={(e) => setAttractionForm({ ...attractionForm, min_height_cm: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                             className="w-full border rounded-xl px-3 py-2 text-sm"
                                         />
                                     </div>
@@ -1892,8 +1618,9 @@ export default function AdminDashboard({
                                             <input
                                                 type="number"
                                                 required
+                                                min="0"
                                                 value={ticketForm.weekday_price}
-                                                onChange={(e) => setTicketForm({ ...ticketForm, weekday_price: Number(e.target.value) })}
+                                                onChange={(e) => setTicketForm({ ...ticketForm, weekday_price: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                                 className="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold"
                                             />
                                         </div>
@@ -1902,8 +1629,9 @@ export default function AdminDashboard({
                                             <input
                                                 type="number"
                                                 required
+                                                min="0"
                                                 value={ticketForm.weekend_price}
-                                                onChange={(e) => setTicketForm({ ...ticketForm, weekend_price: Number(e.target.value) })}
+                                                onChange={(e) => setTicketForm({ ...ticketForm, weekend_price: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                                 className="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold text-amber-800"
                                             />
                                         </div>
@@ -1912,8 +1640,9 @@ export default function AdminDashboard({
                                             <input
                                                 type="number"
                                                 required
+                                                min="0"
                                                 value={ticketForm.holiday_price}
-                                                onChange={(e) => setTicketForm({ ...ticketForm, holiday_price: Number(e.target.value) })}
+                                                onChange={(e) => setTicketForm({ ...ticketForm, holiday_price: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                                 className="w-full border rounded-lg px-2.5 py-1.5 text-xs font-bold text-rose-800"
                                             />
                                         </div>
@@ -1923,134 +1652,15 @@ export default function AdminDashboard({
                                         <input
                                             type="number"
                                             required
+                                            min="1"
                                             value={ticketForm.initial_quota}
-                                            onChange={(e) => setTicketForm({ ...ticketForm, initial_quota: Number(e.target.value) })}
+                                            onChange={(e) => setTicketForm({ ...ticketForm, initial_quota: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 0) })}
                                             className="w-full border rounded-xl px-3 py-2 text-sm"
                                         />
                                     </div>
                                     <div className="pt-2 flex gap-2">
                                         <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs">Simpan Kategori Tiket</button>
                                         <button type="button" onClick={() => setTicketModalOpen(false)} className="px-4 border rounded-xl text-xs font-semibold">Batal</button>
-                                    </div>
-                                </form>
-                            </DialogPanel>
-                        </div>
-                    </Dialog>
-                </Transition>
-
-                <Transition show={promoModalOpen} as={Fragment}>
-                    <Dialog className="relative z-50 font-sans" onClose={() => setPromoModalOpen(false)}>
-                        <TransitionChild as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
-                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" />
-                        </TransitionChild>
-                        <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4">
-                            <DialogPanel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-                                <h3 className="text-lg font-bold text-slate-900 mb-1">Terbitkan Kupon Promo</h3>
-                                <p className="text-xs text-slate-500 mb-4">Atur ruang lingkup, kode, diskon, dan masa berlaku kupon.</p>
-                                <form onSubmit={submitPromo} className="space-y-3.5">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Kode Kupon (Huruf Kapital)</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={promoForm.code}
-                                            onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value.toUpperCase() })}
-                                            placeholder="Contoh: LIBURANSERU"
-                                            className="w-full border rounded-xl px-3 py-2 text-sm font-mono font-bold"
-                                        />
-                                    </div>
-
-                                    {/* Ruang Lingkup Promo — hanya Super Admin bisa buat global */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Ruang Lingkup Promo</label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setPromoForm({ ...promoForm, scope: 'park', park_id: park?.id })}
-                                                className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-bold transition ${
-                                                    promoForm.scope === 'park'
-                                                        ? 'border-blue-600 bg-blue-50 text-blue-800'
-                                                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                                                }`}
-                                            >
-                                                <span className="text-base">🏟</span>
-                                                <span>Khusus Park Ini</span>
-                                                <span className="text-[10px] font-normal text-slate-500 normal-case">{park?.name}</span>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                disabled={!isSuperAdmin}
-                                                onClick={() => setPromoForm({ ...promoForm, scope: 'global', park_id: null })}
-                                                className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-bold transition ${
-                                                    promoForm.scope === 'global'
-                                                        ? 'border-purple-600 bg-purple-50 text-purple-800'
-                                                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                                                } disabled:opacity-40 disabled:cursor-not-allowed`}
-                                            >
-                                                <span className="text-base">🌐</span>
-                                                <span>Global Semua Park</span>
-                                                <span className="text-[10px] font-normal text-slate-500 normal-case">
-                                                    {isSuperAdmin ? 'Bisa dipakai di mana saja' : 'Hanya Super Admin'}
-                                                </span>
-                                            </button>
-                                        </div>
-                                        {promoForm.scope === 'park' && (
-                                            <p className="mt-1.5 text-[11px] text-blue-700 bg-blue-50 rounded-lg px-2.5 py-1.5">
-                                                ✅ Promo ini <strong>hanya bisa dipakai</strong> untuk tiket di <strong>{park?.name}</strong>. Jika digunakan di park lain, akan otomatis ditolak.
-                                            </p>
-                                        )}
-                                        {promoForm.scope === 'global' && (
-                                            <p className="mt-1.5 text-[11px] text-purple-700 bg-purple-50 rounded-lg px-2.5 py-1.5">
-                                                🌐 Promo ini berlaku di <strong>semua park</strong> tanpa batasan lokasi.
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Jenis Diskon</label>
-                                            <select
-                                                value={promoForm.discount_type}
-                                                onChange={(e) => setPromoForm({ ...promoForm, discount_type: e.target.value })}
-                                                className="w-full border rounded-xl px-3 py-2 text-sm"
-                                            >
-                                                <option value="PERCENTAGE">Persentase (%)</option>
-                                                <option value="FIXED">Potongan Tetap (Rp)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Nilai Diskon</label>
-                                            <input
-                                                type="number"
-                                                required
-                                                value={promoForm.discount_value}
-                                                onChange={(e) => setPromoForm({ ...promoForm, discount_value: Number(e.target.value) })}
-                                                className="w-full border rounded-xl px-3 py-2 text-sm"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Minimal Transaksi (Rp)</label>
-                                        <input
-                                            type="number"
-                                            value={promoForm.min_order_amount}
-                                            onChange={(e) => setPromoForm({ ...promoForm, min_order_amount: Number(e.target.value) })}
-                                            className="w-full border rounded-xl px-3 py-2 text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Berlaku Sampai Tanggal</label>
-                                        <input
-                                            type="date"
-                                            required
-                                            value={promoForm.valid_until}
-                                            onChange={(e) => setPromoForm({ ...promoForm, valid_until: e.target.value })}
-                                            className="w-full border rounded-xl px-3 py-2 text-sm"
-                                        />
-                                    </div>
-                                    <div className="pt-2 flex gap-2">
-                                        <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs">Terbitkan Kupon</button>
-                                        <button type="button" onClick={() => setPromoModalOpen(false)} className="px-4 border rounded-xl text-xs font-semibold">Batal</button>
                                     </div>
                                 </form>
                             </DialogPanel>
@@ -2090,8 +1700,9 @@ export default function AdminDashboard({
                                                 <input
                                                     type="number"
                                                     required
+                                                    min="0"
                                                     value={rateForm.weekday_price}
-                                                    onChange={(e) => setRateForm({ ...rateForm, weekday_price: Number(e.target.value) })}
+                                                    onChange={(e) => setRateForm({ ...rateForm, weekday_price: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                                     className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm font-bold text-slate-900 focus:border-indigo-500 outline-none"
                                                 />
                                             </div>
@@ -2106,8 +1717,9 @@ export default function AdminDashboard({
                                                 <input
                                                     type="number"
                                                     required
+                                                    min="0"
                                                     value={rateForm.weekend_price}
-                                                    onChange={(e) => setRateForm({ ...rateForm, weekend_price: Number(e.target.value) })}
+                                                    onChange={(e) => setRateForm({ ...rateForm, weekend_price: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                                     className="w-full pl-9 pr-3 py-2 border border-amber-300 rounded-lg text-sm font-bold text-amber-950 focus:border-amber-500 outline-none"
                                                 />
                                             </div>
@@ -2122,8 +1734,9 @@ export default function AdminDashboard({
                                                 <input
                                                     type="number"
                                                     required
+                                                    min="0"
                                                     value={rateForm.holiday_price}
-                                                    onChange={(e) => setRateForm({ ...rateForm, holiday_price: Number(e.target.value) })}
+                                                    onChange={(e) => setRateForm({ ...rateForm, holiday_price: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                                     className="w-full pl-9 pr-3 py-2 border border-rose-300 rounded-lg text-sm font-bold text-rose-950 focus:border-rose-500 outline-none"
                                                 />
                                             </div>
@@ -2286,7 +1899,8 @@ export default function AdminDashboard({
                 {/* =========================================================
                     MODAL MANAJEMEN HARI LIBUR NASIONAL (TAMBAH & EDIT)
                 ========================================================= */}
-                <Transition show={holidayModalOpen} as={Fragment}>
+                {isSuperAdmin && (
+                    <Transition show={holidayModalOpen} as={Fragment}>
                     <Dialog className="relative z-50 font-sans" onClose={() => setHolidayModalOpen(false)}>
                         <TransitionChild as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
                             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" />
@@ -2352,8 +1966,8 @@ export default function AdminDashboard({
                         </div>
                     </Dialog>
                 </Transition>
-
-            </div>
+            )}
+            </AdminLayout>
         </>
     );
 }

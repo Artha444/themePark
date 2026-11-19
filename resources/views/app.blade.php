@@ -14,7 +14,7 @@
         <!-- Landing OTTA (TokaPark × Wahanaku style) -->
         <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet" />
         <!-- VURASI landing — display art-deco & italic editorial -->
-        <link href="https://fonts.bunny.net/css?family=poiret-one:400%7Cplayfair-display:400i,500i,600i&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=poiret-one:400%7Canton:400%7Cplayfair-display:400i,500i,600i&display=swap" rel="stylesheet" />
 
         <!-- Midtrans Snap JS -->
         <script 

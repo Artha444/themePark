@@ -52,6 +52,7 @@ export default function Checkout({
 
             const { snap_token, order_code } = result;
 
+            // Gunakan Snap Popup bawaan Midtrans di web
             if (window.snap && snap_token) {
                 window.snap.pay(snap_token, {
                     onSuccess: async function (snapResult) {
@@ -68,25 +69,40 @@ export default function Checkout({
                         } catch (e) {
                             console.error('Error confirming payment:', e);
                         }
-                        router.visit(`/tickets/order/${order_code}`);
+                        window.location.href = `/tickets/order/${order_code}`;
                     },
-                    onPending: function (result) {
-                        router.visit(`/tickets/order/${order_code}`);
+                    onPending: async function (result) {
+                        if (result && (result.transaction_status === 'settlement' || result.transaction_status === 'capture')) {
+                            try {
+                                await fetch(`/tickets/order/${order_code}/confirm-success`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                    },
+                                    body: JSON.stringify(result || {}),
+                                });
+                            } catch (e) {
+                                console.error('Error confirming payment:', e);
+                            }
+                        }
+                        window.location.href = `/tickets/order/${order_code}`;
                     },
                     onError: function (result) {
                         setErrorMessage('Pembayaran gagal atau dibatalkan oleh sistem Midtrans.');
                         setIsSubmitting(false);
-                        router.visit(`/tickets/order/${order_code}`);
+                        window.location.href = `/tickets/order/${order_code}`;
                     },
                     onClose: function () {
                         // User closed the popup without finishing the payment
                         setIsSubmitting(false);
-                        router.visit(`/tickets/order/${order_code}`);
+                        window.location.href = `/tickets/order/${order_code}`;
                     },
                 });
             } else {
                 // Fallback direct visit if snap js not available
-                router.visit(`/tickets/order/${order_code}`);
+                window.location.href = `/tickets/order/${order_code}`;
             }
         } catch (err) {
             setErrorMessage(err.message || 'Terjadi kesalahan saat memproses checkout.');

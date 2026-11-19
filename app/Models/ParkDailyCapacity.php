@@ -17,6 +17,8 @@ class ParkDailyCapacity extends Model
         'booked_count',
         'locked_count',
         'is_closed',
+        'override_status',
+        'closure_reason',
     ];
 
     public function park()

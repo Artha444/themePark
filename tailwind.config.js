@@ -21,6 +21,8 @@ export default {
                 inter: ['Inter', ...defaultTheme.fontFamily.sans],
                 // VURASI gallery landing — display art-deco + italic editorial
                 display: ['"Poiret One"', '"Iowan Old Style"', 'Georgia', 'serif'],
+                // VURASI hero "sport poster" — headline condensed tebal
+                anton: ['Anton', 'Impact', '"Arial Narrow"', 'sans-serif'],
                 edserif: ['"Playfair Display"', 'Georgia', 'serif'],
             },
             colors: {

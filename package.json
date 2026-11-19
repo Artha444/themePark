@@ -27,6 +27,8 @@
     "dependencies": {
         "@neondatabase/auth": "^0.6.0-beta",
         "framer-motion": "^14.0.0",
-        "lucide-react": "^1.52.0"
+        "lucide-react": "^1.52.0",
+        "motion": "^14.14.0",
+        "recharts": "^3.10.1"
     }
 }

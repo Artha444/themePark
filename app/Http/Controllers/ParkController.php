@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\DailyInventory;
+use App\Models\NationalHoliday;
 use App\Models\Park;
+use App\Models\ParkDailyCapacity;
 use App\Models\Promotion;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -43,7 +45,7 @@ class ParkController extends Controller
                 $defaultImageUrl = $isArt
                     ? 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80'
                     : 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=800&q=80';
-                $imageUrl = !empty($park->image_url) ? $park->image_url : $defaultImageUrl;
+                $imageUrl = ! empty($park->image_url) ? $park->image_url : $defaultImageUrl;
 
                 return [
                     'id' => $park->id,
@@ -51,6 +53,10 @@ class ParkController extends Controller
                     'name' => $park->name,
                     'description' => $park->description,
                     'location_address' => $park->location_address,
+                    'city' => $park->city,
+                    'latitude' => $park->latitude,
+                    'longitude' => $park->longitude,
+                    'maps_place_name' => $park->maps_place_name,
                     'open_time' => $park->open_time,
                     'close_time' => $park->close_time,
                     'default_daily_capacity' => $park->default_daily_capacity,
@@ -65,7 +71,8 @@ class ParkController extends Controller
 
         // Ambil promo aktif lintas destinasi
         $now = Carbon::now();
-        $promotions = Promotion::where('is_active', true)
+        $promotions = Promotion::with('park')
+            ->where('is_active', true)
             ->where('valid_from', '<=', $now)
             ->where('valid_until', '>=', $now)
             ->take(3)
@@ -78,31 +85,82 @@ class ParkController extends Controller
         ]);
     }
 
-    public function show(string $id): Response
+    public function show(Request $request, string $id): Response
     {
         $today = Carbon::today()->format('Y-m-d');
+        $selectedDate = $request->query('date', $today);
 
-        $park = Park::with(['zones.attractions', 'ticketTiers.dailyInventories' => function ($q) use ($today) {
-                $q->where('visit_date', '>=', $today)
-                  ->where('is_open', true)
-                  ->orderBy('visit_date');
-            }])
+        $park = Park::with(['zones.attractions', 'ticketTiers' => function ($q) {
+            $q->where('is_active', true);
+        }])
             ->where('is_active', true)
             ->where(function ($q) use ($id) {
                 $q->where('id', $id)->orWhere('slug', $id);
             })
             ->firstOrFail();
 
+        // Cek hari libur nasional atau weekend
+        $nationalHoliday = NationalHoliday::whereDate('holiday_date', $selectedDate)->first();
+        $isHoliday = $nationalHoliday !== null;
+        $isWeekend = Carbon::parse($selectedDate)->isWeekend();
+
+        // Pastikan capacity & daily inventory tersedia untuk tanggal terpilih
+        $capacity = ParkDailyCapacity::firstOrCreate(
+            [
+                'park_id' => $park->id,
+                'visit_date' => $selectedDate,
+            ],
+            [
+                'max_capacity' => $park->default_daily_capacity ?? 5000,
+                'booked_count' => 0,
+                'locked_count' => 0,
+                'is_closed' => false,
+            ]
+        );
+
+        foreach ($park->ticketTiers as $tier) {
+            if ($isHoliday) {
+                $targetPrice = $tier->holiday_price ?? ($tier->weekend_price ? (int) ($tier->weekend_price * 1.15) : 120000);
+            } elseif ($isWeekend) {
+                $targetPrice = $tier->weekend_price ?? ($tier->weekday_price ? (int) ($tier->weekday_price * 1.2) : 100000);
+            } else {
+                $targetPrice = $tier->weekday_price ?? 75000;
+            }
+
+            $inventory = DailyInventory::firstOrCreate(
+                [
+                    'ticket_tier_id' => $tier->id,
+                    'visit_date' => $selectedDate,
+                ],
+                [
+                    'park_daily_capacity_id' => $capacity->id,
+                    'price' => $targetPrice,
+                    'total_quota' => $tier->initial_quota ?? 1000,
+                    'booked_quota' => 0,
+                    'locked_quota' => 0,
+                    'is_open' => true,
+                ]
+            );
+
+            if ($inventory->booked_quota === 0 && $inventory->price !== $targetPrice) {
+                $inventory->update(['price' => $targetPrice]);
+            }
+        }
+
+        $inventories = DailyInventory::with('ticketTier')
+            ->whereIn('ticket_tier_id', $park->ticketTiers->pluck('id'))
+            ->where('visit_date', $selectedDate)
+            ->where('is_open', true)
+            ->get();
+
         $category = $park->category ?: (str_contains(strtolower($park->name), 'art') || str_contains(strtolower($park->name), 'pavilion') ? 'Art & Light Exhibition' : 'Theme Park & Wahana');
         $isArt = str_contains(strtolower($category), 'art') || str_contains(strtolower($park->name), 'art');
         $defaultImageUrl = $isArt
             ? 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&q=80'
             : 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=1200&q=80';
-        $imageUrl = !empty($park->image_url) ? $park->image_url : $defaultImageUrl;
+        $imageUrl = ! empty($park->image_url) ? $park->image_url : $defaultImageUrl;
 
-        // Ambil harga tiket terendah dari relasi yang sudah di-eager load
-        $allInventories = $park->ticketTiers->flatMap->dailyInventories;
-        $minPrice = $allInventories->isNotEmpty() ? $allInventories->min('price') : 75000;
+        $minPrice = $inventories->isNotEmpty() ? $inventories->min('price') : 75000;
 
         // Promo aktif spesifik park atau global
         $now = Carbon::now();
@@ -123,6 +181,10 @@ class ParkController extends Controller
                 'image_url' => $imageUrl,
                 'category' => $category,
                 'location_address' => $park->location_address,
+                'city' => $park->city,
+                'latitude' => $park->latitude,
+                'longitude' => $park->longitude,
+                'maps_place_name' => $park->maps_place_name,
                 'open_time' => $park->open_time,
                 'close_time' => $park->close_time,
                 'default_daily_capacity' => $park->default_daily_capacity,
@@ -144,9 +206,8 @@ class ParkController extends Controller
                         }),
                     ];
                 }),
-                'ticket_tiers' => $park->ticketTiers->where('is_active', true)->values()->map(function ($tier) use ($today) {
-                    $nextInv = $tier->dailyInventories->firstWhere('visit_date', $today)
-                        ?: $tier->dailyInventories->first();
+                'ticket_tiers' => $park->ticketTiers->values()->map(function ($tier) use ($inventories) {
+                    $inv = $inventories->firstWhere('ticket_tier_id', $tier->id);
 
                     return [
                         'id' => $tier->id,
@@ -156,11 +217,16 @@ class ParkController extends Controller
                         'min_age' => $tier->min_age,
                         'max_age' => $tier->max_age,
                         'max_height_cm' => $tier->max_height_cm,
-                        'price' => $nextInv ? $nextInv->price : $tier->initial_price,
-                        'quota' => $nextInv ? $nextInv->total_quota : $tier->initial_quota,
+                        'price' => $inv ? $inv->price : $tier->initial_price,
+                        'quota' => $inv ? ($inv->total_quota - $inv->booked_quota - $inv->locked_quota) : $tier->initial_quota,
+                        'inventory_id' => $inv?->id,
                     ];
                 }),
             ],
+            'inventories' => $inventories,
+            'selectedDate' => $selectedDate,
+            'capacity' => $capacity,
+            'holiday' => $nationalHoliday,
             'promotions' => $promotions,
             'today' => $today,
         ]);

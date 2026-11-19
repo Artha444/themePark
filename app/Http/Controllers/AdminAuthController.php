@@ -33,7 +33,7 @@ class AdminAuthController extends Controller
         $credentials = $request->only('email', 'password');
         $remember = $request->boolean('remember');
 
-        if (!Auth::attempt($credentials, $remember)) {
+        if (! Auth::attempt($credentials, $remember)) {
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);
@@ -53,6 +53,7 @@ class AdminAuthController extends Controller
         }
 
         $request->session()->regenerate();
+        \Log::info('AdminAuthController@store: login success', ['user' => $user->toArray(), 'role' => $user->role]);
 
         // Redirect cerdas sesuai role
         if ($user->isStaff()) {

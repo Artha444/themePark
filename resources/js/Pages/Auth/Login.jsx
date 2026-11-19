@@ -45,7 +45,7 @@ export default function Login({ status, canResetPassword }) {
 
     return (
         <>
-            <Head title="Masuk Akun Pengunjung | Vurasi" />
+            <Head title="Masuk Akun | Vurasi" />
 
             <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
                 
@@ -54,9 +54,9 @@ export default function Login({ status, canResetPassword }) {
                     <Link href="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-orange-600 text-xs font-bold transition">
                         <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
                     </Link>
-                    <Link href="/admin/login" className="text-xs font-bold text-slate-500 hover:text-slate-800">
-                        Login Admin / Staf &rarr;
-                    </Link>
+                    <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                        Satu Pintu Akses
+                    </span>
                 </div>
 
                 <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl relative overflow-hidden">
@@ -67,9 +67,9 @@ export default function Login({ status, canResetPassword }) {
                         <div className="w-14 h-14 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto mb-4 border border-orange-100 shadow-xs">
                             <Ticket className="w-7 h-7" />
                         </div>
-                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Masuk Akun Pengunjung</h1>
-                        <p className="text-xs text-slate-500 mt-1.5">
-                            Akses riwayat e-tiket barcode Anda, lakukan reschedule, dan lanjutkan checkout.
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Masuk ke Vurasi</h1>
+                        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                            Satu portal untuk Pengunjung, Pengelola Destinasi, dan Administrator Pusat.
                         </p>
                     </div>
 
@@ -173,19 +173,17 @@ export default function Login({ status, canResetPassword }) {
                     </form>
 
                     <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-500">
-                        Belum punya akun pengunjung?{' '}
+                        Belum punya akun?{' '}
                         <Link href={route('register')} className="font-extrabold text-orange-600 hover:text-orange-700">
                             Daftar Gratis di Sini
                         </Link>
                     </div>
                 </div>
 
-                {/* Footer Portal Link */}
-                <div className="mt-6 text-center space-y-1 text-xs text-slate-400">
-                    <p>Petugas operasional atau pengelola wahana?{' '}
-                        <Link href="/admin/login" className="font-bold text-slate-700 hover:text-orange-600 underline">
-                            Login Portal Konsol Staf
-                        </Link>
+                {/* Info Akun Admin Default */}
+                <div className="mt-6 text-center text-[11px] text-slate-400 max-w-sm">
+                    <p>
+                        Sistem mendeteksi role Anda secara otomatis setelah berhasil masuk dan langsung mengarahkan ke dashboard yang sesuai.
                     </p>
                 </div>
 

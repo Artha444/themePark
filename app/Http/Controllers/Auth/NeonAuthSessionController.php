@@ -83,8 +83,10 @@ class NeonAuthSessionController extends Controller
         Auth::guard('web')->login($user, true);
         $request->session()->regenerate();
 
+        $intendedUrl = session()->pull('url.intended');
+
         return response()->json([
-            'redirect' => route('orders.history', absolute: false),
+            'redirect' => $intendedUrl ?: route('orders.history', absolute: false),
         ]);
     }
 }

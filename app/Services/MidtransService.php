@@ -21,7 +21,7 @@ class MidtransService
     }
 
     /**
-     * Create Snap Token for an Order.
+     * Create Snap Token and Redirect URL for an Order.
      *
      * @param array{
      *     order_code: string,
@@ -32,7 +32,7 @@ class MidtransService
      *     items: array<int, array{id: string, price: int|float, quantity: int, name: string}>
      * } $orderData
      */
-    public function createSnapToken(array $orderData): string
+    public function createSnapTransaction(array $orderData): object
     {
         $this->configure();
 
@@ -80,8 +80,11 @@ class MidtransService
                 'phone' => $orderData['customer_phone'],
             ],
             'item_details' => $itemDetails,
+            'callbacks' => [
+                'finish' => route('tickets.order', ['order_code' => $orderData['order_code']]),
+            ],
         ];
 
-        return Snap::getSnapToken($params);
+        return Snap::createTransaction($params);
     }
 }
