@@ -81,17 +81,17 @@ class DatabaseSeeder extends Seeder
         // 3. CREATE ATTRACTIONS
         // ==========================================
         // Wonderpark Attractions
-        Attraction::create(['zone_id' => $zone1->id, 'name' => 'HyperSpeed Roller Coaster', 'description' => 'Roller coaster baja dengan 3 kali putaran loop 360 derajat.', 'min_height_cm' => 135, 'status' => 'OPERATIONAL']);
-        Attraction::create(['zone_id' => $zone1->id, 'name' => 'Drop Tower 80M', 'description' => 'Terjun bebas tanpa gravitasi dari ketinggian menara 80 meter.', 'min_height_cm' => 140, 'status' => 'OPERATIONAL']);
-        Attraction::create(['zone_id' => $zone2->id, 'name' => 'Grand Carousel Fantasi', 'description' => 'Komedi putar bertingkat dua dengan 60 patung kuda ukiran klasik.', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
-        Attraction::create(['zone_id' => $zone2->id, 'name' => 'Sky Ferris Wheel of Lights', 'description' => 'Bianglala raksasa dengan panorama pemandangan kota dari ketinggian.', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
-        Attraction::create(['zone_id' => $zone3->id, 'name' => 'Mega Splash Typhoon', 'description' => 'Seluncuran terowongan air spiral menuju kolam ombak.', 'min_height_cm' => 120, 'status' => 'MAINTENANCE']);
-        Attraction::create(['zone_id' => $zone4->id, 'name' => 'Galaxy VR Simulator 4D', 'description' => 'Simulasi jelajah galaksi bintang dengan efek gerak haptic realistik.', 'min_height_cm' => 110, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zone1->id, 'name' => 'HyperSpeed Roller Coaster', 'description' => 'Roller coaster baja dengan 3 kali putaran loop 360 derajat.', 'image_url' => '/images/rollercoaster.png', 'min_height_cm' => 135, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zone1->id, 'name' => 'Drop Tower 80M', 'description' => 'Terjun bebas tanpa gravitasi dari ketinggian menara 80 meter.', 'image_url' => 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=800&q=80', 'min_height_cm' => 140, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zone2->id, 'name' => 'Grand Carousel Fantasi', 'description' => 'Komedi putar bertingkat dua dengan 60 patung kuda ukiran klasik.', 'image_url' => 'https://images.unsplash.com/photo-1513889961551-628c1e5e2ee9?w=800&q=80', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zone2->id, 'name' => 'Sky Ferris Wheel of Lights', 'description' => 'Bianglala raksasa dengan panorama pemandangan kota dari ketinggian.', 'image_url' => '/images/ferris.png', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zone3->id, 'name' => 'Mega Splash Typhoon', 'description' => 'Seluncuran terowongan air spiral menuju kolam ombak.', 'image_url' => 'https://images.unsplash.com/photo-1582650625119-3a31f8418b7d?w=800&q=80', 'min_height_cm' => 120, 'status' => 'MAINTENANCE']);
+        Attraction::create(['zone_id' => $zone4->id, 'name' => 'Galaxy VR Simulator 4D', 'description' => 'Simulasi jelajah galaksi bintang dengan efek gerak haptic realistik.', 'image_url' => 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1df?w=800&q=80', 'min_height_cm' => 110, 'status' => 'OPERATIONAL']);
 
         // Vurasi Art Pavilion Attractions
-        Attraction::create(['zone_id' => $zoneArt1->id, 'name' => 'Pendulum Harmony Sculpture', 'description' => 'Instalasi pendulum magnetik bergerak dengan pola fraktal geometris.', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
-        Attraction::create(['zone_id' => $zoneArt2->id, 'name' => 'Luminescent Forest Path', 'description' => 'Lorong cermin infinity dipadukan dengan ribuan lampu serat optik kristal.', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
-        Attraction::create(['zone_id' => $zoneArt3->id, 'name' => 'Cosmic Symphony 360 Dome', 'description' => 'Pertunjukan visualisasi tata surya digital dengan tata suara imersif.', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zoneArt1->id, 'name' => 'Pendulum Harmony Sculpture', 'description' => 'Instalasi pendulum magnetik bergerak dengan pola fraktal geometris.', 'image_url' => 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800&q=80', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zoneArt2->id, 'name' => 'Luminescent Forest Path', 'description' => 'Lorong cermin infinity dipadukan dengan ribuan lampu serat optik kristal.', 'image_url' => 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&q=80', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
+        Attraction::create(['zone_id' => $zoneArt3->id, 'name' => 'Cosmic Symphony 360 Dome', 'description' => 'Pertunjukan visualisasi tata surya digital dengan tata suara imersif.', 'image_url' => 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&q=80', 'min_height_cm' => 0, 'status' => 'OPERATIONAL']);
 
         // ==========================================
         // 4. CREATE GATES
@@ -276,6 +276,7 @@ class DatabaseSeeder extends Seeder
             'valid_from' => Carbon::now()->subDays(5),
             'valid_until' => Carbon::now()->addMonths(2),
             'is_active' => true,
+            'image_url' => 'https://images.unsplash.com/photo-1513889961551-628c1e5e2ee9?q=80&w=800&auto=format&fit=crop',
         ]);
 
         $promoPotongan = Promotion::create([
@@ -288,6 +289,7 @@ class DatabaseSeeder extends Seeder
             'valid_from' => Carbon::now()->subDays(5),
             'valid_until' => Carbon::now()->addMonths(2),
             'is_active' => true,
+            'image_url' => 'https://images.unsplash.com/photo-1572985025288-475c6d1d669a?q=80&w=800&auto=format&fit=crop',
         ]);
 
         $promoSeni = Promotion::create([
@@ -300,6 +302,7 @@ class DatabaseSeeder extends Seeder
             'valid_from' => Carbon::now()->subDays(2),
             'valid_until' => Carbon::now()->addMonths(1),
             'is_active' => true,
+            'image_url' => 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=800&auto=format&fit=crop',
         ]);
 
         // ==========================================

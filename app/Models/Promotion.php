@@ -16,6 +16,7 @@ class Promotion extends Model
         'discount_type',
         'discount_value',
         'min_order_amount',
+        'image_url',
         'max_discount_amount',
         'max_redemptions',
         'valid_from',

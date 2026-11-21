@@ -29,6 +29,7 @@ export default function ManagePark({
 
     // Modal States
     const [attractionModalOpen, setAttractionModalOpen] = useState(false);
+    const [editingAttraction, setEditingAttraction] = useState(null);
     const [ticketModalOpen, setTicketModalOpen] = useState(false);
     const [newParkModalOpen, setNewParkModalOpen] = useState(false);
     const [editParkModalOpen, setEditParkModalOpen] = useState(false);
@@ -243,18 +244,64 @@ export default function ManagePark({
         });
     };
 
+    const openCreateAttractionModal = () => {
+        setEditingAttraction(null);
+        setAttractionForm({
+            zone_id: zones[0]?.id || '',
+            name: '',
+            description: '',
+            image_url: '',
+            min_height_cm: 0,
+            status: 'OPERATIONAL',
+        });
+        setAttractionModalOpen(true);
+    };
+
+    const openEditAttractionModal = (attraction) => {
+        setEditingAttraction(attraction);
+        setAttractionForm({
+            zone_id: attraction.zone_id || zones[0]?.id || '',
+            name: attraction.name || '',
+            description: attraction.description || '',
+            image_url: attraction.image_url || '',
+            min_height_cm: attraction.min_height_cm ?? 0,
+            status: attraction.status || 'OPERATIONAL',
+        });
+        setAttractionModalOpen(true);
+    };
+
+    const handleDeleteAttraction = (attraction) => {
+        if (confirm(`Apakah Anda yakin ingin menghapus wahana "${attraction.name}"?`)) {
+            router.delete(`/admin/attractions/${attraction.id}`, {
+                preserveScroll: true,
+            });
+        }
+    };
+
     const submitAttraction = (e) => {
         e.preventDefault();
-        router.post('/admin/attractions', {
+        const payload = {
             ...attractionForm,
             zone_id: attractionForm.zone_id || zones[0]?.id,
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                setAttractionModalOpen(false);
-                setAttractionForm({ zone_id: zones[0]?.id || '', name: '', description: '', min_height_cm: 0, status: 'OPERATIONAL' });
-            },
-        });
+        };
+
+        if (editingAttraction) {
+            router.post(`/admin/attractions/${editingAttraction.id}/update`, payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setAttractionModalOpen(false);
+                    setEditingAttraction(null);
+                },
+            });
+        } else {
+            router.post('/admin/attractions', payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setAttractionModalOpen(false);
+                    setAttractionForm({ zone_id: zones[0]?.id || '', name: '', description: '', min_height_cm: 0, status: 'OPERATIONAL' });
+                },
+            });
+        }
     };
 
     const submitTicketTier = (e) => {
@@ -1136,8 +1183,8 @@ export default function ManagePark({
                                         </p>
                                     </div>
                                     <button
-                                        onClick={() => setAttractionModalOpen(true)}
-                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
+                                        onClick={openCreateAttractionModal}
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
                                     >
                                         <Plus className="w-4 h-4" />
                                         Tambah Wahana Baru
@@ -1170,18 +1217,36 @@ export default function ManagePark({
                                                 )}
                                                 <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                                                     <div>
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <span className="text-[10px] font-bold text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded">
+                                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                                            <span className="text-[10px] font-bold text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded truncate">
                                                                 {attraction.zone?.name || 'Zona Utama'}
                                                             </span>
-                                                            <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                                                                attraction.status === 'OPERATIONAL' ? 'bg-emerald-100 text-emerald-800' :
-                                                                attraction.status === 'MAINTENANCE' ? 'bg-amber-100 text-amber-800' :
-                                                                'bg-rose-100 text-rose-800'
-                                                            }`}>
-                                                                {attraction.status === 'OPERATIONAL' ? '✓ BUKA' :
-                                                                 attraction.status === 'MAINTENANCE' ? '⚠ PERBAIKAN' : '✕ TUTUP'}
-                                                            </span>
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                                                    attraction.status === 'OPERATIONAL' ? 'bg-emerald-100 text-emerald-800' :
+                                                                    attraction.status === 'MAINTENANCE' ? 'bg-amber-100 text-amber-800' :
+                                                                    'bg-rose-100 text-rose-800'
+                                                                }`}>
+                                                                    {attraction.status === 'OPERATIONAL' ? '✓ BUKA' :
+                                                                     attraction.status === 'MAINTENANCE' ? '⚠ PERBAIKAN' : '✕ TUTUP'}
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openEditAttractionModal(attraction)}
+                                                                    className="p-1 rounded-md text-slate-500 hover:text-orange-600 hover:bg-white border border-slate-200 transition cursor-pointer"
+                                                                    title="Edit Wahana"
+                                                                >
+                                                                    <Edit3 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteAttraction(attraction)}
+                                                                    className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-white border border-slate-200 transition cursor-pointer"
+                                                                    title="Hapus Wahana"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                         <h4 className="font-extrabold text-base text-slate-900">
                                                             {attraction.name}
@@ -1505,15 +1570,35 @@ export default function ManagePark({
                     </Dialog>
                 </Transition>
 
-                {/* ================= MODAL TAMBAH WAHANA ================= */}
+                {/* ================= MODAL TAMBAH / EDIT WAHANA ================= */}
                 <Transition show={attractionModalOpen} as={Fragment}>
-                    <Dialog className="relative z-50 font-sans" onClose={() => setAttractionModalOpen(false)}>
+                    <Dialog
+                        className="relative z-50 font-sans"
+                        onClose={() => {
+                            setAttractionModalOpen(false);
+                            setEditingAttraction(null);
+                        }}
+                    >
                         <TransitionChild as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
                             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" />
                         </TransitionChild>
                         <div className="fixed inset-0 overflow-y-auto flex items-center justify-center p-4">
                             <DialogPanel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-                                <h3 className="text-lg font-bold text-slate-900 mb-4">Tambah Wahana / Atraksi ({park?.name})</h3>
+                                <div className="flex items-center justify-between pb-3 border-b mb-4">
+                                    <h3 className="text-lg font-bold text-slate-900">
+                                        {editingAttraction ? `Edit Wahana: ${editingAttraction.name}` : `Tambah Wahana / Atraksi (${park?.name})`}
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setAttractionModalOpen(false);
+                                            setEditingAttraction(null);
+                                        }}
+                                        className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
                                 <form onSubmit={submitAttraction} className="space-y-3.5">
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Zona</label>
@@ -1537,6 +1622,18 @@ export default function ManagePark({
                                             placeholder="Contoh: Gravity Storm Coaster"
                                             className="w-full border rounded-xl px-3 py-2 text-sm"
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Status Operasional</label>
+                                        <select
+                                            value={attractionForm.status}
+                                            onChange={(e) => setAttractionForm({ ...attractionForm, status: e.target.value })}
+                                            className="w-full border rounded-xl px-3 py-2 text-sm"
+                                        >
+                                            <option value="OPERATIONAL">✓ OPERATIONAL (Buka)</option>
+                                            <option value="MAINTENANCE">⚠ MAINTENANCE (Perbaikan)</option>
+                                            <option value="CLOSED">✕ CLOSED (Tutup)</option>
+                                        </select>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Deskripsi</label>
@@ -1573,8 +1670,19 @@ export default function ManagePark({
                                         />
                                     </div>
                                     <div className="pt-2 flex gap-2">
-                                        <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs">Simpan Wahana</button>
-                                        <button type="button" onClick={() => setAttractionModalOpen(false)} className="px-4 border rounded-xl text-xs font-semibold">Batal</button>
+                                        <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer">
+                                            {editingAttraction ? 'Simpan Perubahan' : 'Simpan Wahana'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAttractionModalOpen(false);
+                                                setEditingAttraction(null);
+                                            }}
+                                            className="px-4 border rounded-xl text-xs font-semibold cursor-pointer hover:bg-slate-50"
+                                        >
+                                            Batal
+                                        </button>
                                     </div>
                                 </form>
                             </DialogPanel>

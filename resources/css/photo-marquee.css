@@ -1,0 +1,70 @@
+/* VURASI — endless photo marquee
+ * One band of large photos with a small even gap. No captions, no frame:
+ * the images read as one continuous strip. Pause on hover/focus and via the
+ * visible control; fully still under reduced motion. */
+
+.pm-viewport {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    padding-block: 8px;
+}
+
+.pm-track {
+    display: flex;
+    width: max-content;
+    gap: var(--pm-gap, 10px);
+    animation: pm-scroll var(--pm-duration, 52s) linear infinite;
+}
+
+.pm-reverse .pm-track {
+    animation-direction: reverse;
+    animation-duration: var(--pm-duration-reverse, 60s);
+}
+
+.pm-viewport:hover .pm-track,
+.pm-viewport:focus-within .pm-track,
+.pm-viewport.pm-paused .pm-track {
+    animation-play-state: paused;
+}
+
+.pm-group {
+    display: flex;
+    gap: var(--pm-gap, 10px);
+}
+
+@keyframes pm-scroll {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(-50%, 0, 0); }
+}
+
+.pm-card {
+    flex: none;
+    width: clamp(260px, 30vw, 420px);
+    margin: 0;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #dbeef6;
+    box-shadow: 0 8px 24px -14px rgba(15, 23, 42, 0.28);
+}
+
+.pm-card img {
+    display: block;
+    width: 100%;
+    height: clamp(190px, 21vw, 300px);
+    object-fit: cover;
+    user-select: none;
+}
+
+@media (max-width: 640px) {
+    .pm-viewport { --pm-gap: 8px; }
+    .pm-card { width: 250px; border-radius: 12px; }
+    .pm-card img { height: 180px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pm-track,
+    .pm-reverse .pm-track { animation: none; }
+    .pm-viewport:hover .pm-track,
+    .pm-viewport:focus-within .pm-track { animation-play-state: running; }
+}

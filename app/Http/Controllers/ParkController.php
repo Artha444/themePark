@@ -73,6 +73,16 @@ class ParkController extends Controller
                     'total_zones' => $park->zones_count,
                     'total_attractions' => $totalAttractions,
                     'zones_preview' => $park->zones->pluck('name')->take(3),
+                    'attractions' => $park->zones->flatMap(function ($zone) {
+                        return $zone->attractions->map(function ($attraction) {
+                            return [
+                                'id' => $attraction->id,
+                                'name' => $attraction->name,
+                                'image_url' => $attraction->image_url,
+                                'status' => $attraction->status,
+                            ];
+                        });
+                    })->values(),
                 ];
             });
 

@@ -89,6 +89,9 @@ Route::middleware('admin.auth')->group(function () {
     // Manajemen Wahana, Kapasitas, Tiket, Promo, Libur — Semua butuh auth
     // Manajemen Wahana
     Route::post('/admin/attractions', [AdminDashboardController::class, 'storeAttraction'])->name('admin.attractions.store');
+    Route::post('/admin/attractions/{id}/update', [AdminDashboardController::class, 'updateAttraction'])->name('admin.attractions.update');
+    Route::put('/admin/attractions/{id}', [AdminDashboardController::class, 'updateAttraction']);
+    Route::delete('/admin/attractions/{id}', [AdminDashboardController::class, 'destroyAttraction'])->name('admin.attractions.destroy');
     Route::post('/admin/attractions/{id}/status', [AdminDashboardController::class, 'updateAttractionStatus'])->name('admin.attractions.status');
 
     // Manajemen Jadwal Buka/Tutup & Kapasitas Gerbang
@@ -105,6 +108,9 @@ Route::middleware('admin.auth')->group(function () {
 
     // Manajemen Kupon Promo
     Route::post('/admin/promotions', [AdminDashboardController::class, 'storePromotion'])->name('admin.promotions.store');
+    Route::post('/admin/promotions/{id}/update', [AdminDashboardController::class, 'updatePromotion'])->name('admin.promotions.update');
+    Route::put('/admin/promotions/{id}', [AdminDashboardController::class, 'updatePromotion']);
+    Route::delete('/admin/promotions/{id}', [AdminDashboardController::class, 'destroyPromotion'])->name('admin.promotions.destroy');
     Route::post('/admin/promotions/{id}/toggle', [AdminDashboardController::class, 'togglePromotion'])->name('admin.promotions.toggle');
 
     // Manajemen Hari Libur Nasional

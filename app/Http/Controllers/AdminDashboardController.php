@@ -987,6 +987,39 @@ class AdminDashboardController extends Controller
         return redirect()->back()->with('success', 'Wahana baru berhasil ditambahkan.');
     }
 
+    public function updateAttraction(Request $request, string $id)
+    {
+        $request->validate([
+            'zone_id' => 'required|exists:zones,id',
+            'name' => 'required|string|max:120',
+            'description' => 'nullable|string',
+            'image_url' => 'nullable|string',
+            'min_height_cm' => 'required|integer|min:0',
+            'status' => 'required|in:OPERATIONAL,MAINTENANCE,CLOSED',
+        ]);
+
+        $attraction = Attraction::findOrFail($id);
+        $attraction->update([
+            'zone_id' => $request->zone_id,
+            'name' => $request->name,
+            'description' => $request->description,
+            'image_url' => $request->image_url,
+            'min_height_cm' => $request->min_height_cm,
+            'status' => $request->status,
+        ]);
+
+        return redirect()->back()->with('success', 'Wahana '.$attraction->name.' berhasil diperbarui.');
+    }
+
+    public function destroyAttraction(string $id)
+    {
+        $attraction = Attraction::findOrFail($id);
+        $name = $attraction->name;
+        $attraction->delete();
+
+        return redirect()->back()->with('success', 'Wahana '.$name.' berhasil dihapus.');
+    }
+
     public function updateAttractionStatus(Request $request, $id)
     {
         $request->validate([
@@ -1293,6 +1326,7 @@ class AdminDashboardController extends Controller
             'valid_until' => 'required|date|after_or_equal:today',
             'scope' => 'nullable|in:park,global',
             'park_id' => 'nullable|exists:parks,id',
+            'image_url' => 'nullable|string',
         ]);
 
         // Aturan Scope: Super Admin khusus menerbitkan promo global (park_id = null),
@@ -1314,6 +1348,7 @@ class AdminDashboardController extends Controller
             'discount_type' => $request->discount_type,
             'discount_value' => $request->discount_value,
             'min_order_amount' => $request->min_order_amount,
+            'image_url' => $request->image_url,
             'max_discount_amount' => $request->discount_type === 'PERCENTAGE' ? 100000 : $request->discount_value,
             'max_redemptions' => 1000,
             'valid_from' => Carbon::now(),
@@ -1324,6 +1359,61 @@ class AdminDashboardController extends Controller
         $scopeLabel = $parkId ? 'khusus untuk park ini' : 'berlaku di semua park (global)';
 
         return redirect()->back()->with('success', "Kupon promo {$request->code} berhasil diterbitkan — {$scopeLabel}.");
+    }
+
+    public function updatePromotion(Request $request, string $id)
+    {
+        $promo = Promotion::findOrFail($id);
+        $user = auth()->user();
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+
+        if (is_null($promo->park_id) && ! $isSuperAdmin) {
+            return redirect()->back()->withErrors(['error' => 'Hanya Super Admin yang dapat mengedit kupon promo global.']);
+        }
+
+        if (! $isSuperAdmin && $promo->park_id !== $user?->assigned_park_id) {
+            return redirect()->back()->withErrors(['error' => 'Anda tidak memiliki hak akses untuk mengedit kupon dari park lain.']);
+        }
+
+        $request->validate([
+            'code' => 'required|string|max:30|unique:promotions,code,'.$id,
+            'discount_type' => 'required|in:PERCENTAGE,FIXED',
+            'discount_value' => 'required|integer|min:1',
+            'min_order_amount' => 'required|integer|min:0',
+            'valid_until' => 'required|date',
+            'image_url' => 'nullable|string',
+        ]);
+
+        $promo->update([
+            'code' => strtoupper($request->code),
+            'discount_type' => $request->discount_type,
+            'discount_value' => $request->discount_value,
+            'min_order_amount' => $request->min_order_amount,
+            'image_url' => $request->image_url,
+            'valid_until' => Carbon::parse($request->valid_until)->endOfDay(),
+        ]);
+
+        return redirect()->back()->with('success', "Kupon promo {$promo->code} berhasil diperbarui.");
+    }
+
+    public function destroyPromotion(string $id)
+    {
+        $promo = Promotion::findOrFail($id);
+        $user = auth()->user();
+        $isSuperAdmin = $user && $user->isSuperAdmin();
+
+        if (is_null($promo->park_id) && ! $isSuperAdmin) {
+            return redirect()->back()->withErrors(['error' => 'Hanya Super Admin yang dapat menghapus kupon promo global.']);
+        }
+
+        if (! $isSuperAdmin && $promo->park_id !== $user?->assigned_park_id) {
+            return redirect()->back()->withErrors(['error' => 'Anda tidak memiliki hak akses untuk menghapus kupon dari park lain.']);
+        }
+
+        $code = $promo->code;
+        $promo->delete();
+
+        return redirect()->back()->with('success', "Kupon promo {$code} berhasil dihapus.");
     }
 
     public function togglePromotion($id)

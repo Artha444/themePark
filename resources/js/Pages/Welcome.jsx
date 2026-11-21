@@ -36,11 +36,12 @@
 
 import { Head, Link } from '@inertiajs/react';
 import { motion, AnimatePresence, MotionConfig, animate, useMotionValue, useSpring, useTransform, useScroll } from 'framer-motion';
-import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import SiteNavbar, { NAV_SECTIONS } from '@/Components/SiteNavbar';
 import MyTicketsModal from '@/Components/MyTicketsModal';
 import HeroSearchTicket from '@/Components/HeroSearchTicket';
+import PhotoMarquee from '@/Components/PhotoMarquee';
 
 /* =========================================================================
    IKON (SVG inline, gaya Lucide — stroke 2, konsisten di seluruh halaman)
@@ -77,6 +78,9 @@ const IconInfo = (p) => <Icon {...p}><circle cx="12" cy="12" r="10" /><path d="M
 const IconSparkles = (p) => <Icon {...p}><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" /></Icon>;
 const IconChevronDown = (p) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
 const IconGift = (p) => <Icon {...p}><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M12 8v13" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /><path d="M12 8H7.5a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8Z" /><path d="M12 8h4.5a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8Z" /></Icon>;
+const IconPlay = (p) => <Icon {...p}><polygon points="6 3 20 12 6 21 6 3" /></Icon>;
+const IconPause = (p) => <Icon {...p}><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></Icon>;
+const IconCamera = (p) => <Icon {...p}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></Icon>;
 
 /* =========================================================================
    TIKET DEKORATIF — warna rust, bertabur statis di sekitar hero latar putih
@@ -257,7 +261,7 @@ function GallerySlider({ parks = [] }) {
             tag: 'Taman seru',
             title: 'Wahana Tematik Turnstile Resmi',
             desc: 'Kuota gerbang dicek real-time — tiket QR terbit instan.',
-            image: 'https://images.unsplash.com/photo-1594737625785-c028ace3b8f4?w=1600&q=80',
+            image: '/images/rollercoaster.png',
             parkId: parks[0]?.id || '',
         },
         {
@@ -659,11 +663,37 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
     const [lookupModalOpen, setLookupModalOpen] = useState(false);
     const [allPromoModalOpen, setAllPromoModalOpen] = useState(false);
     const [detailPromo, setDetailPromo] = useState(null);
+    const [marqueePaused, setMarqueePaused] = useState(false);
+    const [failedPromoImages, setFailedPromoImages] = useState([]);
 
     // Filter promo: kupon global (park_id null / tanpa batasan park tertentu)
     const globalPromotions = promotions.filter((p) => !p.park_id);
-    // Kupon yang ditampilkan di baris landing page (maksimal 3)
-    const displayedPromotions = promotions.slice(0, 3);
+    // Promo spesial = hanya global. Diskon & Kupon Eksklusif = hanya yang terikat park.
+    const parkPromotions = promotions.filter((p) => p.park_id);
+
+    // Foto suasana untuk marquee: HANYA dari destinasi park dan detail wahananya saja (tanpa foto dummy/statis)
+    const vibePhotos = useMemo(() => {
+        const parkPhotos = parks
+            .filter((p) => p.image_url)
+            .map((p) => ({
+                caption: p.name,
+                image: p.image_url,
+                subCaption: p.city || 'Destinasi',
+            }));
+
+        const attractionPhotos = parks.flatMap((p) =>
+            (p.attractions || [])
+                .filter((a) => a.image_url)
+                .map((a) => ({
+                    caption: `${a.name} — ${p.name}`,
+                    image: a.image_url,
+                    subCaption: p.name,
+                }))
+        );
+
+        return [...parkPhotos, ...attractionPhotos];
+    }, [parks]);
+    const marqueeRowA = vibePhotos;
 
     // Interaktivitas global
     const scrolled = useScrolled(16);
@@ -922,9 +952,9 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                         </motion.span>
                     </motion.a>
                 </section>
-
-                {/* ================= 3. MINI BANNER PROMO — 3 per baris, geser samping ================= */}
-                {promotions.length > 0 && (
+               
+                {/* ================= 3. MINI BANNER PROMO — khusus promo global, 3 per baris ================= */}
+                {globalPromotions.length > 0 && (
                     <section id="promo-mini" aria-label="Promo spesial" className="relative scroll-mt-24 overflow-hidden bg-white py-14 sm:py-20">
                         {/* Latar dekoratif: dot grid + blob lembut — serasi hero */}
                         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -990,7 +1020,7 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
 
                             {/* Lajur mini banner — 3 promo per baris di desktop, bergeser per 3 kartu */}
                             <div ref={promoTrackRef} className="no-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto pb-3">
-                                {promotions.map((promo, idx) => {
+                                {globalPromotions.map((promo, idx) => {
                                     const discountLabel =
                                         promo.discount_type === 'PERCENTAGE'
                                             ? `${promo.discount_value}%`
@@ -999,6 +1029,73 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                                         ? new Date(promo.valid_until).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
                                         : null;
                                     const theme = PROMO_THEMES[idx % PROMO_THEMES.length];
+                                    const hasImage = Boolean(promo.image_url) && !failedPromoImages.includes(promo.id);
+                                    const promoHref = promo.park_id ? `/tickets?park_id=${promo.park_id}` : '/tickets';
+
+                                    // Kartu bergambar: header teks promo + diskon, foto di bawahnya dipotong (tidak tampil utuh).
+                                    if (hasImage) {
+                                        return (
+                                            <motion.article
+                                                key={promo.id}
+                                                data-promo-card
+                                                initial={{ opacity: 0, y: 24 }}
+                                                whileInView={{ opacity: 1, y: 0 }}
+                                                viewport={{ once: true, amount: 0.2 }}
+                                                transition={{ duration: 0.45, delay: (idx % 3) * 0.08, ease: EASE }}
+                                                whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                                                className="group w-full shrink-0 snap-start overflow-hidden rounded-3xl bg-white shadow-[0_18px_40px_-20px_rgba(15,23,42,0.4)] ring-1 ring-zinc-900/10 sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]"
+                                            >
+                                                <Link href={promoHref} aria-label={`Lihat promo ${promo.code}`} className="block">
+                                                    <div className="h-[200px] overflow-hidden bg-zinc-100 sm:h-[212px]">
+                                                        <img
+                                                            src={promo.image_url}
+                                                            alt={`Promo ${promo.code}`}
+                                                            width="1200"
+                                                            height="900"
+                                                            loading="lazy"
+                                                            className="h-full w-full scale-110 object-cover object-center transition-transform duration-500 group-hover:scale-125"
+                                                            onError={() => setFailedPromoImages((ids) => [...new Set([...ids, promo.id])])}
+                                                        />
+                                                    </div>
+                                                </Link>
+
+                                                <div className="p-5">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <h3 className="text-lg font-extrabold leading-tight text-zinc-900">
+                                                                {promo.discount_type === 'PERCENTAGE' ? 'Potongan harga spesial' : 'Potongan langsung'}
+                                                            </h3>
+                                                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${theme.soft}`}>
+                                                                Hot Deal
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-1.5 text-sm text-zinc-500">
+                                                            Min. transaksi <span className="font-bold text-zinc-700">{rupiah(promo.min_order_amount)}</span>
+                                                        </p>
+
+                                                        <div className="mt-5 flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyCode(promo.code)}
+                                                                aria-label={`Salin kode promo ${promo.code}`}
+                                                                className="flex min-h-[44px] min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50/60 px-3 transition-colors hover:border-sky-500 cursor-pointer"
+                                                            >
+                                                                <span className={`truncate font-mono text-xs font-bold tracking-[0.15em] ${copiedCode === promo.code ? 'text-emerald-600' : 'text-zinc-900'}`}>
+                                                                    {copiedCode === promo.code ? 'Tersalin!' : promo.code}
+                                                                </span>
+                                                                <IconCopy className={`h-4 w-4 shrink-0 ${copiedCode === promo.code ? 'text-emerald-600' : 'text-sky-600'}`} />
+                                                            </button>
+                                                            <Link
+                                                                href={promoHref}
+                                                                className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl bg-sky-600 px-3.5 text-xs font-extrabold uppercase tracking-wider text-white shadow-md shadow-sky-600/25 transition-colors hover:bg-sky-700 cursor-pointer"
+                                                            >
+                                                                Pakai
+                                                                <IconArrowRight className="h-3.5 w-3.5" />
+                                                            </Link>
+                                                        </div>
+                                                </div>
+                                            </motion.article>
+                                        );
+                                    }
 
                                     return (
                                         <motion.article
@@ -1011,8 +1108,8 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                                             whileHover={{ y: -6, transition: { duration: 0.2 } }}
                                             className="group relative flex w-full shrink-0 snap-start flex-col overflow-hidden rounded-3xl bg-white shadow-[0_18px_40px_-20px_rgba(15,23,42,0.4)] ring-1 ring-zinc-900/10 sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]"
                                         >
-                                            {/* Header gradasi — voucher diskon */}
-                                            <div className={`relative overflow-hidden bg-gradient-to-br ${theme.band} p-5 pb-8 text-white`}>
+                                            {/* Header gradasi / Banner promo — voucher diskon */}
+                                            <div className={`relative h-[200px] overflow-hidden bg-gradient-to-br ${theme.band} p-5 pb-8 text-white sm:h-[212px]`}>
                                                 <div className="absolute -right-12 -top-14 h-40 w-40 rounded-full border-[16px] border-white/10" aria-hidden="true" />
                                                 <div
                                                     className="absolute inset-0 opacity-[0.13]"
@@ -1097,7 +1194,80 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                         </div>
                     </section>
                 )}
+ {/* ================= 4b. MARQUEE FOTO — pita suasana setelah hero ================= */}
+                {vibePhotos.length > 0 && (
+                    <section id="suasana" aria-label="Suasana dan keseruan nyata" className="relative scroll-mt-24 overflow-hidden border-y-2 border-zinc-950 bg-[#fffbf2] pb-12 pt-16 text-zinc-900 sm:pb-16 sm:pt-20">
+                        {/* Latar dekoratif: dot grid + blob hangat */}
+                        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                            <div className="dots-bg-light absolute inset-0 opacity-45" />
+                            <div className="absolute -left-20 top-1/3 h-72 w-72 rounded-full bg-orange-200/35 blur-3xl" />
+                            <div className="absolute -right-20 top-1/2 h-72 w-72 rounded-full bg-[#62C6EA]/20 blur-3xl" />
+                        </div>
 
+                        {/* Kepala Section */}
+                        <div className="relative mx-auto mb-8 flex max-w-[1440px] flex-wrap items-end justify-between gap-6 px-3 sm:px-5 lg:px-6">
+                            {/* Kiri: badge + judul Anton + deskripsi */}
+                            <div>
+                                <span className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-950 bg-orange-600 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-[3px_3px_0_#18181b]">
+                                    <IconCamera className="h-3.5 w-3.5" />
+                                    Potret Park &amp; Wahana Resmi
+                                </span>
+                                <h2 className="mt-3 font-anton text-4xl uppercase tracking-[0.02em] text-zinc-950 sm:text-5xl lg:text-6xl">
+                                    Momen Nyata, <span className="text-orange-600">Seru</span> Dari Dekat
+                                </h2>
+                                <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                                    Intip suasana asli dari tiap destinasi park dan detail wahana resmi yang siap kamu jelajahi.
+                                </p>
+                            </div>
+
+                            {/* Kanan: status jumlah potret asli + kontrol jeda */}
+                            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-950 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-zinc-900 shadow-[3px_3px_0_#18181b]">
+                                    <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                                    </span>
+                                    <span>{vibePhotos.length} Potret Wahana &amp; Park</span>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setMarqueePaused((prev) => !prev)}
+                                    aria-label={marqueePaused ? 'Lanjutkan putaran foto' : 'Jeda putaran foto'}
+                                    className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-950 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wider text-zinc-900 shadow-[3px_3px_0_#18181b] transition-all hover:bg-orange-600 hover:text-white active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0_#18181b] cursor-pointer"
+                                >
+                                    {marqueePaused ? (
+                                        <>
+                                            <IconPlay className="h-3.5 w-3.5 fill-current" />
+                                            <span>Lanjutkan</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <IconPause className="h-3.5 w-3.5 fill-current" />
+                                            <span>Jeda</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Pita Marquee dengan masker gradasi halus di tepi */}
+                        <div className="relative overflow-hidden">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-[#fffbf2] to-transparent sm:w-28" aria-hidden="true" />
+                            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-[#fffbf2] to-transparent sm:w-28" aria-hidden="true" />
+
+                            <PhotoMarquee items={marqueeRowA} paused={marqueePaused} label="Foto suasana destinasi dan wahana" />
+                        </div>
+
+                        {/* Petunjuk interaksi halus di bawah pita */}
+                        <div className="mt-4 flex items-center justify-center gap-1.5 px-4 text-center">
+                            <IconSparkles className="h-3.5 w-3.5 text-orange-600" />
+                            <span className="text-xs font-medium text-zinc-500">
+                                Sentuh atau arahkan kursor ke foto untuk melihat lebih dekat (otomatis menjeda)
+                            </span>
+                        </div>
+                    </section>
+                )}
                 {/* ================= 4. DESTINASI — band cream galeri ================= */}
                 <section id="parks" className="scroll-mt-20 bg-[#f5efda] py-16 text-zinc-950 sm:py-24">
                     <div className="mx-auto max-w-[1440px] px-3 sm:px-5 lg:px-6">
@@ -1203,9 +1373,8 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                     </div>
 
                 </section>
-
                 {/* ================= 5. KUPON & PENAWARAN SPESIAL (TITIK EMAS 2: DI BAWAH KATALOG PARK) ================= */}
-                {promotions.length > 0 && (
+                {parkPromotions.length > 0 && (
                     <section id="promo" className="relative scroll-mt-20 overflow-hidden bg-white py-16 sm:py-24">
                         {/* Latar dekoratif: dot grid + blob lembut */}
                         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -1220,7 +1389,7 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                                 <div>
                                     <span className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-950 bg-orange-600 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-[3px_3px_0_#18181b]">
                                         <IconTicket className="h-3.5 w-3.5" />
-                                        &sect; 02 — Promo &amp; Penawaran Spesial
+                                        &sect; 03 — Promo &amp; Penawaran Spesial
                                     </span>
                                     <h2 className="mt-4 font-anton text-4xl uppercase leading-[0.95] text-zinc-950 sm:text-6xl">
                                         Diskon &amp; <span className="stroke-word">Kupon Eksklusif</span>
@@ -1246,7 +1415,7 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                             {/* Grid Kupon Promo */}
                             <div className="relative">
                                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                                    {displayedPromotions.map((promo, idx) => {
+                                    {parkPromotions.map((promo, idx) => {
                                         const stub = COUPON_DOTS[idx % COUPON_DOTS.length];
                                         const discountLabel =
                                             promo.discount_type === 'PERCENTAGE' ? `${promo.discount_value}%` : `Rp ${Number(promo.discount_value).toLocaleString('id-ID')}`;
@@ -1265,11 +1434,26 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                                                 viewport={{ once: true, amount: 0.2 }}
                                                 whileHover={{ y: -6, transition: { duration: 0.2 } }}
                                                 transition={{ duration: 0.45, delay: idx * 0.08, ease: EASE }}
-                                                className="relative flex flex-col justify-between rounded-3xl border-2 border-zinc-900 bg-white shadow-[5px_5px_0_#18181b]"
+                                                className="relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-zinc-900 bg-white shadow-[5px_5px_0_#18181b]"
                                             >
+                                                {promo.image_url && (
+                                                    <div className="relative h-28 w-full overflow-hidden border-b-2 border-zinc-900 bg-zinc-100">
+                                                        <img
+                                                            src={promo.image_url}
+                                                            alt={promo.code}
+                                                            className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                                                            onError={(e) => { e.target.style.display = 'none'; }}
+                                                        />
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                                                        <span className="absolute bottom-2 left-3 rounded-md bg-black/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-xs">
+                                                            {promo.park_id ? promo.park?.name || 'Khusus Park' : 'Promo Global'}
+                                                        </span>
+                                                    </div>
+                                                )}
+
                                                 {/* Atas tiket */}
                                                 <div className="flex border-b-2 border-dashed border-zinc-900/20">
-                                                    <div className={`flex w-24 shrink-0 flex-col items-center justify-center gap-1 rounded-tl-[22px] border-r-2 border-dashed border-zinc-950/20 p-3.5 text-center ${stub}`}>
+                                                    <div className={`flex w-24 shrink-0 flex-col items-center justify-center gap-1 ${promo.image_url ? '' : 'rounded-tl-[22px]'} border-r-2 border-dashed border-zinc-950/20 p-3.5 text-center ${stub}`}>
                                                         <span className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-80">
                                                             {promo.park_id ? 'Khusus' : 'Global'}
                                                         </span>
@@ -1367,7 +1551,7 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                             transition={{ duration: 0.55, ease: EASE }}
                             className="mb-10"
                         >
-                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-orange-600">&sect; 03 — Bantuan</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-orange-600">&sect; 04 — Bantuan</p>
                             <h2 className="mt-2 font-anton text-4xl uppercase tracking-[0.02em] sm:text-6xl">
                                 Pertanyaan <span className="stroke-word">Umum</span>
                             </h2>
@@ -1528,9 +1712,18 @@ export default function Welcome({ parks = [], promotions = [], today, auth = {} 
                                 leaveFrom="opacity-100 scale-100"
                                 leaveTo="opacity-0 scale-95"
                             >
-                                <DialogPanel className="relative w-full max-w-lg rounded-3xl border-2 border-zinc-900 bg-white p-6 shadow-[8px_8px_0_#18181b] sm:p-8">
+                                <DialogPanel className="relative w-full max-w-lg overflow-hidden rounded-3xl border-2 border-zinc-900 bg-white p-6 shadow-[8px_8px_0_#18181b] sm:p-8">
                                     {detailPromo && (
                                         <>
+                                            {detailPromo.image_url && (
+                                                <div className="-mx-6 -mt-6 sm:-mx-8 sm:-mt-8 mb-5 border-b-2 border-zinc-900 overflow-hidden">
+                                                    <img
+                                                        src={detailPromo.image_url}
+                                                        alt={detailPromo.code}
+                                                        className="h-44 w-full object-cover"
+                                                    />
+                                                </div>
+                                            )}
                                             <div className="flex items-start justify-between border-b border-zinc-200 pb-4">
                                                 <div>
                                                     <span className="rounded-md bg-orange-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">

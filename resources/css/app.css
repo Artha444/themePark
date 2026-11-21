@@ -1,5 +1,6 @@
 @import url("./tokens.css");
 @import url("./hero-search-ticket.css");
+@import url("./photo-marquee.css");
 
 @tailwind base;
 @tailwind components;

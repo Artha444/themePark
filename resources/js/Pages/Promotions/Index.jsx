@@ -219,12 +219,26 @@ export default function PromotionsIndex({ promotions = [], parks = [] }) {
                                             initial={{ opacity: 0, y: 20 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ duration: 0.4, delay: idx * 0.05, ease: EASE }}
-                                            className="relative flex flex-col justify-between rounded-3xl border-2 border-zinc-900 bg-white shadow-[5px_5px_0_#18181b]"
+                                            className="relative flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-zinc-900 bg-white shadow-[5px_5px_0_#18181b]"
                                         >
+                                            {/* Banner Gambar Promo Jika Ada */}
+                                            {promo.image_url && (
+                                                <div className="relative h-28 w-full border-b-2 border-dashed border-zinc-900/20 overflow-hidden bg-zinc-100">
+                                                    <img
+                                                        src={promo.image_url}
+                                                        alt={`Promo ${promo.code}`}
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                    <span className="absolute bottom-2 right-2 rounded-md bg-zinc-900/80 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+                                                        {promo.code}
+                                                    </span>
+                                                </div>
+                                            )}
+
                                             {/* Bagian Atas Tiket */}
                                             <div className="flex border-b-2 border-dashed border-zinc-900/20">
                                                 <div
-                                                    className={`flex w-24 sm:w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-tl-[22px] border-r-2 border-dashed border-zinc-950/20 p-4 text-center ${stub}`}
+                                                    className={`flex w-24 sm:w-28 shrink-0 flex-col items-center justify-center gap-1 ${promo.image_url ? '' : 'rounded-tl-[22px]'} border-r-2 border-dashed border-zinc-950/20 p-4 text-center ${stub}`}
                                                 >
                                                     <span className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-80">
                                                         {promo.park_id ? 'Khusus' : 'Global'}
@@ -330,9 +344,18 @@ export default function PromotionsIndex({ promotions = [], parks = [] }) {
                                     leaveFrom="opacity-100 scale-100"
                                     leaveTo="opacity-0 scale-95"
                                 >
-                                    <DialogPanel className="relative w-full max-w-lg rounded-3xl border-2 border-zinc-900 bg-white p-6 shadow-[8px_8px_0_#18181b] sm:p-8">
+                                    <DialogPanel className="relative w-full max-w-lg overflow-hidden rounded-3xl border-2 border-zinc-900 bg-white p-6 shadow-[8px_8px_0_#18181b] sm:p-8">
                                         {detailPromo && (
                                             <>
+                                                {detailPromo.image_url && (
+                                                    <div className="-mx-6 -mt-6 sm:-mx-8 sm:-mt-8 mb-5 border-b-2 border-zinc-900 overflow-hidden">
+                                                        <img
+                                                            src={detailPromo.image_url}
+                                                            alt={detailPromo.code}
+                                                            className="h-44 w-full object-cover"
+                                                        />
+                                                    </div>
+                                                )}
                                                 <div className="flex items-start justify-between border-b border-zinc-200 pb-4">
                                                     <div>
                                                         <span className="rounded-md bg-orange-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
