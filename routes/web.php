@@ -7,6 +7,7 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\GateScannerController;
 use App\Http\Controllers\MidtransNotificationController;
 use App\Http\Controllers\ParkController;
+use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TicketStatusController;
 use App\Http\Controllers\UserOrderHistoryController;
@@ -18,6 +19,7 @@ use Inertia\Inertia;
 Route::get('/', [ParkController::class, 'index'])->name('home');
 Route::get('/parks/{id}', [ParkController::class, 'show'])->name('parks.show');
 Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+Route::get('/promotions', [PromotionController::class, 'index'])->name('promotions.index');
 Route::get('/auth/neon/callback', fn () => Inertia::render('Auth/NeonCallback'))
     ->name('neon.callback');
 Route::post('/auth/neon/session', NeonAuthSessionController::class)

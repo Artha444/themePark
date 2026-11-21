@@ -1,24 +1,121 @@
-import { useState } from 'react';
+/**
+ * VURASI — DETAIL DESTINASI (versi ringkas & fokus)
+ *
+ * Hirarki informasi: hero pendek → jam operasional → DAFTAR TIKET.
+ * Seluruh dekorasi & motion mendukung dua hal itu, bukan mengalahkannya.
+ *
+ * LOGIKA BISNIS TIDAK BERUBAH:
+ * - Ganti tanggal → GET /parks/{id}?date=... (preserveState)
+ * - Promo → POST /api/tickets/check-promo
+ * - Checkout → GET /tickets/checkout?items=...&date=...&promo=...
+ */
+
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { motion, MotionConfig } from 'framer-motion';
 import {
-    MapPin, Clock, Users, ArrowRight, ArrowLeft, Ticket,
-    ShieldCheck, Sparkles, CheckCircle2,
-    Layers, Tag, Info, ChevronRight, Calendar, Plus, Minus, AlertCircle, Loader2, ExternalLink
+    motion, AnimatePresence, MotionConfig, animate,
+    useMotionValue, useSpring, useTransform, useScroll,
+} from 'framer-motion';
+import {
+    MapPin, Clock, Users, ArrowRight, Ticket, ShieldCheck,
+    CheckCircle2, Tag, Calendar, Plus, Minus, AlertCircle,
+    Loader2, ExternalLink, Copy, Check, Gift, Sparkles,
 } from 'lucide-react';
+import SiteNavbar, { NAV_SECTIONS } from '@/Components/SiteNavbar';
+import MyTicketsModal from '@/Components/MyTicketsModal';
 
-/* Easing konsisten dengan landing page */
 const EASE = [0.22, 1, 0.36, 1];
+const fmtID = new Intl.NumberFormat('id-ID');
+const rupiah = (n) => `Rp ${fmtID.format(n || 0)}`;
+const fmtCount = (v) => fmtID.format(Math.round(v || 0));
+const fmtRupiah = (v) => `Rp ${fmtID.format(Math.round(v || 0))}`;
 
-/* Bungkus animasi masuk layar — dipicu sekali saat elemen terlihat */
+const prefersReducedMotion = () =>
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 const reveal = (delay = 0) => ({
-    initial: { opacity: 0, y: 32 },
+    initial: { opacity: 0, y: 16 },
     whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, amount: 0.25 },
-    transition: { duration: 0.55, delay, ease: EASE },
+    viewport: { once: true, amount: 0.2 },
+    transition: { duration: 0.45, delay, ease: EASE },
 });
 
-export default function ParkDetail({ park, promotions = [], today, selectedDate: initialDate, inventories = [] }) {
+const NAV_LINKS = NAV_SECTIONS.map((s) => ({
+    label: s.label,
+    href: s.href ?? `/#${s.id}`,
+    active: s.href === '/tickets',
+}));
+
+/* Status & jam buka dihitung dari jam lokal pengunjung (sama dengan landing). */
+function parkStatus(park, now = new Date()) {
+    const toMin = (t) => {
+        if (!t) return null;
+        const [h, m] = String(t).split(':');
+        const hh = Number(h);
+        const mm = Number(m) || 0;
+        if (Number.isNaN(hh)) return null;
+        return hh * 60 + mm;
+    };
+    const open = toMin(park.open_time);
+    const close = toMin(park.close_time);
+    const bt = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}.${String(t % 60).padStart(2, '0')}`;
+    if (open == null || close == null) {
+        return { isOpen: true, label: 'Buka setiap hari', hours: 'Setiap hari' };
+    }
+    const cur = now.getHours() * 60 + now.getMinutes();
+    return {
+        isOpen: cur >= open && cur < close,
+        label: cur >= open && cur < close ? `Buka sekarang · tutup ${bt(close)}` : `Tutup · buka ${bt(open)}`,
+        hours: `${bt(open)} – ${bt(close)} WIB`,
+    };
+}
+
+/* ---- Dekorasi ringan ---- */
+function Sparkle({ className = '' }) {
+    return (
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+            <path d="M12 2c.8 5 4.2 8.4 9.2 9.2-5 .8-8.4 4.2-9.2 9.2-.8-5-4.2-8.4-9.2-9.2 5-.8 8.4-4.2 9.2-9.2Z" />
+        </svg>
+    );
+}
+
+function AnimatedValue({ value, format = fmtCount, className = '' }) {
+    const ref = useRef(null);
+    const previous = useRef(0);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return undefined;
+        const target = Number(value) || 0;
+        const from = previous.current;
+        previous.current = target;
+        if (prefersReducedMotion()) {
+            el.textContent = format(target);
+            return undefined;
+        }
+        const controls = animate(from, target, {
+            duration: 0.7,
+            ease: EASE,
+            onUpdate: (v) => { el.textContent = format(v); },
+        });
+        return () => controls.stop();
+    }, [value]);
+
+    return <span ref={ref} className={className}>{format(0)}</span>;
+}
+
+/* ========================================================================= */
+export default function ParkDetail({
+    park,
+    promotions = [],
+    today,
+    selectedDate: initialDate,
+    capacity,
+    holiday,
+}) {
+    /* state pemesanan */
     const [visitDate, setVisitDate] = useState(initialDate || today);
     const [quantities, setQuantities] = useState({});
     const [promoCode, setPromoCode] = useState('');
@@ -27,59 +124,110 @@ export default function ParkDetail({ park, promotions = [], today, selectedDate:
     const [promoError, setPromoError] = useState('');
     const [loadingPromo, setLoadingPromo] = useState(false);
 
-    // Menghitung total wahana dari seluruh zona
-    const allAttractions = park.zones?.flatMap((z) =>
-        z.attractions.map((att) => ({ ...att, zoneName: z.name }))
-    ) || [];
+    /* state interaksi */
+    const [lookupModalOpen, setLookupModalOpen] = useState(false);
+    const [copiedCode, setCopiedCode] = useState(null);
+    const [showAllAttractions, setShowAllAttractions] = useState(false);
 
+    const zones = park.zones || [];
+    const tiers = park.ticket_tiers || [];
+    const allAttractions = zones.flatMap((z) =>
+        (z.attractions || []).map((a) => ({ ...a, zoneName: z.name }))
+    );
     const operationalCount = allAttractions.filter((a) => a.status === 'OPERATIONAL').length;
+    const status = parkStatus(park);
+    const totalCapacity = capacity?.max_capacity || park.default_daily_capacity || 5000;
+    const minPrice = park.min_price || (tiers.length ? Math.min(...tiers.map((t) => Number(t.price) || 0)) : 75000);
 
+    const visibleAttractions = showAllAttractions ? allAttractions : allAttractions.slice(0, 4);
+
+    const dateOptions = useMemo(() => {
+        const base = today ? new Date(`${today}T00:00:00`) : new Date();
+        return Array.from({ length: 6 }, (_, i) => {
+            const d = new Date(base);
+            d.setDate(base.getDate() + i);
+            const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return {
+                iso,
+                day: d.toLocaleDateString('id-ID', { weekday: 'short' }),
+                num: d.getDate(),
+                month: d.toLocaleDateString('id-ID', { month: 'short' }),
+            };
+        });
+    }, [today]);
+
+    const nameWords = String(park.name || '').trim().split(/\s+/).filter(Boolean);
+    const headSolid = nameWords.slice(0, Math.max(1, nameWords.length - 1)).join(' ');
+    const headOutline = nameWords.length > 1 ? nameWords[nameWords.length - 1] : '';
+
+    /* Parallax hero — ringan, dua lapis saja */
+    const heroRef = useRef(null);
+    const { scrollYProgress: heroProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
+    const imageY = useTransform(heroProgress, [0, 1], [0, 60]);
+
+    const pointerX = useMotionValue(0);
+    const pointerY = useMotionValue(0);
+    const springX = useSpring(pointerX, { stiffness: 60, damping: 18 });
+    const springY = useSpring(pointerY, { stiffness: 60, damping: 18 });
+    const decoX = useTransform(springX, [-1, 1], [-14, 14]);
+    const decoY = useTransform(springY, [-1, 1], [-9, 9]);
+
+    const handleHeroPointer = (e) => {
+        if (prefersReducedMotion()) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        pointerX.set(((e.clientX - rect.left) / rect.width) * 2 - 1);
+        pointerY.set(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    };
+    const resetHeroPointer = () => {
+        pointerX.set(0);
+        pointerY.set(0);
+    };
+
+    /* ---- aksi (logika lama) ---- */
     const handleDateChange = (newDate) => {
+        if (!newDate || newDate === visitDate) return;
         setVisitDate(newDate);
         setQuantities({});
+        setPromoApplied('');
+        setPromoDiscount(0);
+        setPromoError('');
         router.get(`/parks/${park.id}`, { date: newDate }, { preserveState: true, preserveScroll: true });
     };
 
     const handleQuantityChange = (inventoryId, delta) => {
-        setQuantities(prev => {
-            const current = prev[inventoryId] || 0;
-            const next = Math.max(0, current + delta);
-            return { ...prev, [inventoryId]: next };
-        });
+        if (!inventoryId) return;
+        setQuantities((prev) => ({
+            ...prev,
+            [inventoryId]: Math.max(0, (prev[inventoryId] || 0) + delta),
+        }));
     };
 
-    // Subtotal calculation
     const itemsSelected = Object.entries(quantities)
-        .filter(([_, qty]) => qty > 0)
+        .filter(([, qty]) => qty > 0)
         .map(([invId, qty]) => {
-            const tier = park.ticket_tiers?.find(t => t.inventory_id === invId);
+            const tier = tiers.find((t) => String(t.inventory_id) === String(invId));
             return {
                 inventory_id: invId,
                 quantity: qty,
-                price: tier ? tier.price : 0,
-                name: tier ? tier.name : '',
+                price: tier ? Number(tier.price) || 0 : 0,
             };
         });
 
-    const subtotal = itemsSelected.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const subtotal = itemsSelected.reduce((acc, item) => acc + item.price * item.quantity, 0);
     const totalQuantity = itemsSelected.reduce((acc, item) => acc + item.quantity, 0);
+    const finalTotal = Math.max(0, subtotal - promoDiscount);
 
     const applyPromo = async () => {
         if (!promoCode.trim()) return;
         setLoadingPromo(true);
         setPromoError('');
-
         try {
             const response = await fetch('/api/tickets/check-promo', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({
-                    code: promoCode,
-                    subtotal,
-                    park_id: park?.id,
-                }),
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ code: promoCode, subtotal, park_id: park?.id }),
             });
-
             const data = await response.json();
             if (data.success) {
                 setPromoDiscount(data.discount_amount);
@@ -98,536 +246,461 @@ export default function ParkDetail({ park, promotions = [], today, selectedDate:
 
     const handleCheckout = () => {
         if (itemsSelected.length === 0) return;
-
-        const checkoutData = itemsSelected.map(i => ({
-            inventory_id: i.inventory_id,
-            quantity: i.quantity,
-        }));
-
-        const params = new URLSearchParams({
-            items: JSON.stringify(checkoutData),
-            date: visitDate,
-        });
-
-        if (promoApplied) {
-            params.append('promo', promoApplied);
-        }
-
+        const items = itemsSelected.map((i) => ({ inventory_id: i.inventory_id, quantity: i.quantity }));
+        const params = new URLSearchParams({ items: JSON.stringify(items), date: visitDate });
+        if (promoApplied) params.append('promo', promoApplied);
         router.get(`/tickets/checkout?${params.toString()}`);
     };
 
-    const finalTotal = Math.max(0, subtotal - promoDiscount);
+    const copyCode = async (code) => {
+        try {
+            await navigator.clipboard.writeText(code);
+        } catch (e) { /* opsional */ }
+        setCopiedCode(code);
+        setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 2000);
+    };
 
     return (
         <>
-            <Head title={`${park.name} - Info & Tiket Masuk`} />
+            <Head title={`${park.name} — Jam Buka & Tiket Masuk | Vurasi`} />
 
             <MotionConfig reducedMotion="user">
-                <div className="min-h-screen bg-[#f5efda] font-sans text-zinc-800 selection:bg-orange-500 selection:text-white">
+                <div className="vurasi min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased selection:bg-orange-500 selection:text-white">
+                    <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[80] focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-xs focus:font-bold focus:text-white">
+                        Lewati ke konten utama
+                    </a>
 
-                    {/* TOP NAVBAR — bar tinta gelap */}
-                    <header className="sticky top-0 z-40 border-b border-white/10 bg-zinc-950/95 backdrop-blur-md">
-                        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                            <Link
-                                href="/tickets"
-                                className="inline-flex items-center gap-2 text-xs font-bold text-zinc-300 transition-colors hover:text-orange-400"
-                            >
-                                <ArrowLeft className="h-4 w-4" />
-                                <span>Kembali ke Beranda</span>
-                            </Link>
+                    <SiteNavbar links={NAV_LINKS} onCekPesanan={() => setLookupModalOpen(true)} />
 
-                            <div className="flex items-center gap-3">
-                                <span className="hidden rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs font-bold uppercase tracking-widest text-zinc-300 sm:inline-flex">
-                                    {park.category}
-                                </span>
-                                <Link
-                                    href={`/tickets?park_id=${park.id}`}
-                                    className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white shadow-lg shadow-orange-600/30 transition-colors hover:bg-orange-500 active:scale-95 cursor-pointer"
+                    <main id="main">
+                        {/* ================= HEADER GAMBAR ================= */}
+                        <section
+                            ref={heroRef}
+                            onMouseMove={handleHeroPointer}
+                            onMouseLeave={resetHeroPointer}
+                            className="relative isolate flex min-h-[26rem] flex-col justify-end overflow-hidden bg-zinc-950 pb-10 pt-28 sm:min-h-[30rem] sm:pb-14 sm:pt-32"
+                        >
+                            {/* Gambar destinasi sebagai header penuh (bukan kartu) */}
+                            <motion.div style={{ x: decoX, y: decoY }} className="absolute inset-0" aria-hidden="true">
+                                <motion.img
+                                    src={park.image_url}
+                                    alt=""
+                                    style={{ y: imageY, scale: 1.12 }}
+                                    className="h-full w-full object-cover object-center"
+                                />
+                            </motion.div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/75 to-zinc-950/30" aria-hidden="true" />
+                            <div className="dots-bg pointer-events-none absolute inset-0 opacity-40" aria-hidden="true" />
+
+                            <div className="relative mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-6">
+                                <motion.div
+                                    initial={{ opacity: 0, y: 12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, ease: EASE }}
+                                    className="inline-flex items-center gap-2 rounded-full border-2 border-white/30 bg-orange-600 px-3.5 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg"
                                 >
-                                    <Ticket className="h-4 w-4" />
-                                    <span>Pesan Tiket</span>
-                                </Link>
+                                    <Ticket className="h-3.5 w-3.5" />
+                                    {park.category}
+                                </motion.div>
+
+                                <motion.h1
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.6, delay: 0.08, ease: EASE }}
+                                    className="mt-4 max-w-3xl font-anton text-4xl uppercase leading-[0.94] text-white sm:text-5xl lg:text-6xl"
+                                >
+                                    <span className="block">{headSolid}</span>
+                                    {headOutline && <span className="block stroke-word-dark">{headOutline}</span>}
+                                </motion.h1>
+
+                                {/* Jam operasional langsung terlihat di header */}
+                                <motion.div
+                                    initial={{ opacity: 0, y: 12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.18, ease: EASE }}
+                                    className="mt-4 flex flex-wrap items-center gap-2"
+                                >
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white">
+                                        <motion.span
+                                            animate={{ scale: [1, 1.35, 1], opacity: [1, 0.6, 1] }}
+                                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                                            className="h-1.5 w-1.5 rounded-full bg-white"
+                                        />
+                                        {status.isOpen ? 'Buka sekarang' : 'Sedang tutup'}
+                                    </span>
+                                    <span className="inline-flex items-center gap-2 rounded-full border-2 border-white/70 bg-zinc-950/50 px-3.5 py-2 text-xs font-extrabold uppercase tracking-wider text-white backdrop-blur-sm">
+                                        <Clock className="h-3.5 w-3.5 text-orange-400" />
+                                        {status.hours}
+                                    </span>
+                                    {holiday && (
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                                            <Sparkles className="h-3 w-3" /> Libur nasional
+                                        </span>
+                                    )}
+                                </motion.div>
+
+                                <motion.p
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ duration: 0.5, delay: 0.26 }}
+                                    className="mt-3 line-clamp-2 max-w-xl text-sm leading-relaxed text-zinc-300"
+                                >
+                                    {park.description || 'Destinasi wisata dengan berbagai wahana rekreasi dan pertunjukan seni.'}
+                                </motion.p>
+
+                                <motion.div
+                                    initial={{ opacity: 0, y: 12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.32, ease: EASE }}
+                                    className="mt-5 flex flex-wrap items-center gap-4"
+                                >
+                                    <motion.a
+                                        href="#tiket"
+                                        whileHover={{ scale: 1.03, y: -2 }}
+                                        whileTap={{ scale: 0.97 }}
+                                        className="inline-flex min-h-[48px] items-center gap-2 rounded-full border-2 border-white bg-orange-600 px-6 text-xs font-extrabold uppercase tracking-widest text-white shadow-[3px_3px_0_rgba(0,0,0,0.5)] cursor-pointer"
+                                    >
+                                        Lihat Daftar Tiket
+                                        <ArrowRight className="h-4 w-4" />
+                                    </motion.a>
+                                    <span className="text-xs text-zinc-300">
+                                        Mulai <span className="font-anton text-lg text-orange-400">{rupiah(minPrice)}</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 text-xs text-zinc-300">
+                                        <MapPin className="h-3.5 w-3.5 text-orange-400" />
+                                        {park.city || park.location_address}
+                                    </span>
+                                </motion.div>
                             </div>
-                        </div>
-                    </header>
 
-                    {/* HERO BANNER — poster gelap dengan judul Anton */}
-                    <div className="relative h-80 overflow-hidden bg-zinc-950 sm:h-96 lg:h-[420px]">
-                        <img
-                            src={park.image_url}
-                            alt={park.name}
-                            className="h-full w-full object-cover opacity-60"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent" />
+                            <motion.div aria-hidden="true" style={{ scaleX: heroProgress }} className="absolute inset-x-0 bottom-0 h-1 origin-left bg-gradient-to-r from-orange-500 to-white" />
+                        </section>
 
-                        <div className="absolute inset-0 mx-auto flex max-w-7xl flex-col justify-end px-4 pb-8 text-white sm:px-6 sm:pb-12 lg:px-8">
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.8, rotate: -3 }}
-                                animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                                transition={{ duration: 0.45, ease: EASE }}
-                                className="mb-4 inline-flex w-max items-center gap-2 rounded-full bg-orange-600 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider shadow-md shadow-orange-600/30"
-                            >
-                                <Sparkles className="h-3.5 w-3.5" />
-                                {park.category}
-                            </motion.div>
+                        {/* ================= BAR INFO (jam, lokasi, harga) ================= */}
+                        <section aria-label="Informasi kunjungan" className="border-y-2 border-zinc-950 bg-zinc-950 text-white">
+                            <div className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-white/10 px-3 py-4 sm:grid-cols-4 sm:px-5 lg:px-6">
+                                {[
+                                    { icon: Clock, label: 'Jam Operasional', value: status.hours, accent: true },
+                                    { icon: CheckCircle2, label: 'Status Hari Ini', value: status.isOpen ? 'Buka sekarang' : 'Sedang tutup' },
+                                    { icon: MapPin, label: 'Lokasi', value: park.city || park.location_address || '—' },
+                                    { icon: Users, label: 'Kapasitas / hari', value: fmtID.format(totalCapacity) },
+                                ].map((item) => (
+                                    <div key={item.label} className="flex items-center gap-3 px-3 py-2 sm:px-4">
+                                        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${item.accent ? 'bg-orange-600' : 'bg-white/10'}`}>
+                                            <item.icon className="h-4 w-4" />
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400">{item.label}</p>
+                                            <p className="truncate text-xs font-bold sm:text-sm">{item.value}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
 
-                            <motion.h1
-                                initial={{ opacity: 0, y: 40 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
-                                className="mb-3 font-anton text-4xl uppercase leading-[0.95] tracking-[0.02em] sm:text-6xl"
-                            >
-                                {park.name}
-                            </motion.h1>
+                        {/* ================= DAFTAR TIKET ================= */}
+                        <section id="tiket" className="scroll-mt-20 bg-zinc-50 py-10 sm:py-14">
+                            <div className="mx-auto max-w-7xl px-3 sm:px-5 lg:px-6">
+                                <motion.div {...reveal(0)} className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-orange-600">&sect; 01 — Pemesanan</p>
+                                        <h2 className="mt-1 font-anton text-3xl uppercase tracking-wide text-zinc-950 sm:text-4xl">
+                                            Daftar <span className="stroke-word">Tiket</span>
+                                        </h2>
+                                    </div>
+                                    <span className="inline-flex items-center gap-2 rounded-full border border-zinc-900/15 bg-white px-3 py-1.5 text-[11px] font-bold text-zinc-600">
+                                        <Clock className="h-3.5 w-3.5 text-orange-600" />
+                                        Buka {status.hours}
+                                    </span>
+                                </motion.div>
 
-                            <motion.div
-                                initial={{ opacity: 0, y: 24 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: 0.22, ease: EASE }}
-                                className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm text-zinc-300"
-                            >
-                                <span className="flex items-center gap-1.5">
-                                    <MapPin className="h-4 w-4 shrink-0 text-orange-400" />
-                                    {park.location_address}
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <Clock className="h-4 w-4 shrink-0 text-orange-400" />
-                                    Buka: {park.open_time?.substring(0, 5)} - {park.close_time?.substring(0, 5)} WIB
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <Users className="h-4 w-4 shrink-0 text-orange-400" />
-                                    Kapasitas: {park.default_daily_capacity?.toLocaleString()} / hari
-                                </span>
-                            </motion.div>
-                        </div>
-                    </div>
-
-                    {/* CONTENT CONTAINER */}
-                    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-                        <div className="grid grid-cols-1 gap-8 sm:gap-10 lg:grid-cols-3">
-
-                            {/* KOLOM KIRI (2/3): INFORMASI LENGKAP, ATRAKSI & ZONA */}
-                            <div className="space-y-8 lg:col-span-2">
-
-                                {/* Tentang Kawasan — kartu kertas brutalist */}
-                                <motion.section {...reveal(0)} className="rounded-3xl border border-zinc-900 bg-white p-6 shadow-[5px_5px_0_0_#18181b] sm:p-8">
-                                    <h2 className="mb-3 flex items-center gap-2 font-anton text-xl uppercase tracking-[0.03em] text-zinc-950 sm:text-2xl">
-                                        <Info className="h-5 w-5 text-orange-600" />
-                                        Tentang Kawasan
-                                    </h2>
-                                    <p className="text-sm leading-relaxed text-zinc-600 sm:text-base">
-                                        {park.description || 'Destinasi wisata terpadu dengan berbagai wahana rekreasi dan pertunjukan seni spektakuler.'}
-                                    </p>
-
-                                    {/* Lokasi & Peta Google Maps */}
-                                    <div className="mt-6 rounded-2xl border border-zinc-900/10 bg-zinc-50 p-4 sm:p-5">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                            <div className="flex items-start gap-3">
-                                                <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 mt-0.5">
-                                                    <MapPin className="w-5 h-5" />
-                                                </div>
+                                <div className="grid items-start gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                                    {/* KARCIS PEMESANAN */}
+                                    <motion.div
+                                        {...reveal(0.05)}
+                                        className="overflow-hidden rounded-[1.6rem] border-2 border-zinc-950 bg-white shadow-[7px_7px_0_#18181b]"
+                                    >
+                                        <div className="flex items-center justify-between border-b-2 border-dashed border-white/20 bg-zinc-950 px-5 py-3.5">
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="grid h-8 w-8 place-items-center rounded-full bg-orange-600 text-white"><Ticket className="h-4 w-4" /></span>
                                                 <div>
-                                                    <h3 className="text-sm font-bold text-zinc-900">
-                                                        {park.maps_place_name || park.name}
-                                                    </h3>
-                                                    <p className="text-xs text-zinc-600 mt-0.5 leading-relaxed">
-                                                        {park.location_address}
-                                                    </p>
+                                                    <p className="font-anton text-base uppercase leading-none text-white">Pilih Tiket</p>
+                                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400">{park.name}</p>
                                                 </div>
                                             </div>
-                                            {park.latitude && park.longitude ? (
-                                                <a
-                                                    href={`https://www.google.com/maps/search/?api=1&query=${park.latitude},${park.longitude}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition shrink-0 shadow-sm"
-                                                >
-                                                    <ExternalLink className="w-3.5 h-3.5" />
-                                                    Buka di Google Maps
-                                                </a>
-                                            ) : (
-                                                <a
-                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(park.location_address || park.name)}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition shrink-0 shadow-sm"
-                                                >
-                                                    <ExternalLink className="w-3.5 h-3.5" />
-                                                    Cari di Google Maps
-                                                </a>
-                                            )}
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-orange-400">Resmi</span>
                                         </div>
 
-                                        {park.latitude && park.longitude && (
-                                            <div className="mt-4 rounded-xl overflow-hidden border border-zinc-900/10 h-48 w-full shadow-inner">
-                                                <iframe
-                                                    width="100%"
-                                                    height="100%"
-                                                    frameBorder="0"
-                                                    scrolling="no"
-                                                    marginHeight="0"
-                                                    marginWidth="0"
-                                                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(park.longitude) - 0.008}%2C${parseFloat(park.latitude) - 0.005}%2C${parseFloat(park.longitude) + 0.008}%2C${parseFloat(park.latitude) + 0.005}&layer=mapnik&marker=${park.latitude}%2C${park.longitude}`}
-                                                    title={`Peta Lokasi ${park.name}`}
-                                                    className="w-full h-full"
+                                        <div className="p-5 sm:p-6">
+                                            {/* Tanggal */}
+                                            <div>
+                                                <label htmlFor="visit-date" className="mb-2 flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-zinc-700">
+                                                    <Calendar className="h-3.5 w-3.5 text-orange-600" /> Tanggal Kunjungan
+                                                </label>
+                                                <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
+                                                    {dateOptions.map((d) => {
+                                                        const active = visitDate === d.iso;
+                                                        return (
+                                                            <button
+                                                                key={d.iso}
+                                                                type="button"
+                                                                onClick={() => handleDateChange(d.iso)}
+                                                                className={`relative flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl cursor-pointer ${
+                                                                    active ? 'text-white' : 'border border-zinc-900/15 bg-zinc-50 text-zinc-600 hover:border-orange-400'
+                                                                }`}
+                                                            >
+                                                                {active && (
+                                                                    <motion.span layoutId="tanggal-aktif" transition={{ type: 'spring', stiffness: 380, damping: 30 }} className="absolute inset-0 rounded-xl border-2 border-zinc-950 bg-[#B8340E] shadow-[2px_2px_0_#18181b]" />
+                                                                )}
+                                                                <span className="relative z-10 text-[9px] font-bold uppercase opacity-80">{d.day}</span>
+                                                                <span className="relative z-10 font-anton text-lg leading-none">{d.num}</span>
+                                                                <span className="relative z-10 text-[9px] uppercase opacity-70">{d.month}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <input
+                                                    id="visit-date"
+                                                    type="date"
+                                                    min={today}
+                                                    value={visitDate}
+                                                    onChange={(e) => handleDateChange(e.target.value)}
+                                                    className="mt-1 w-full rounded-xl border border-zinc-900/20 bg-zinc-50 px-3.5 py-2.5 text-sm font-semibold outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                                                 />
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* Statistik ringkas */}
-                                    <div className="mt-6 grid grid-cols-2 gap-4 border-t border-dashed border-zinc-900/20 pt-6 sm:grid-cols-3">
-                                        <div className="rounded-2xl border border-zinc-900/10 bg-zinc-950/[0.03] p-4">
-                                            <span className="block text-xs font-bold uppercase text-zinc-400">Zona Tematik</span>
-                                            <span className="mt-1 block font-anton text-2xl text-zinc-950">
-                                                {park.zones?.length || 0} <span className="text-sm text-zinc-500">Area</span>
-                                            </span>
-                                        </div>
-                                        <div className="rounded-2xl border border-zinc-900/10 bg-zinc-950/[0.03] p-4">
-                                            <span className="block text-xs font-bold uppercase text-zinc-400">Wahana Aktif</span>
-                                            <span className="mt-1 block font-anton text-2xl text-emerald-600">
-                                                {operationalCount}<span className="text-zinc-400">/{allAttractions.length}</span> <span className="text-sm text-zinc-500">Buka</span>
-                                            </span>
-                                        </div>
-                                        <div className="col-span-2 rounded-2xl border border-zinc-900/10 bg-zinc-950/[0.03] p-4 sm:col-span-1">
-                                            <span className="block text-xs font-bold uppercase text-zinc-400">Kategori Tiket</span>
-                                            <span className="mt-1 block font-anton text-2xl text-orange-600">
-                                                {park.ticket_tiers?.length || 0} <span className="text-sm text-zinc-500">Pilihan</span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                </motion.section>
+                                            {/* Daftar tier tiket */}
+                                            <div className="mt-6">
+                                                <h3 className="mb-2.5 text-xs font-extrabold uppercase tracking-wider text-zinc-700">Kategori Tiket</h3>
+                                                {tiers.length ? (
+                                                    <div className="space-y-2.5">
+                                                        {tiers.map((tier) => {
+                                                            const invId = tier.inventory_id;
+                                                            const qty = quantities[invId] || 0;
+                                                            const remaining = Number(tier.quota) || 0;
+                                                            const isSoldOut = remaining <= 0 || !invId;
+                                                            return (
+                                                                <motion.div
+                                                                    key={tier.id}
+                                                                    layout
+                                                                    animate={{
+                                                                        borderColor: qty > 0 ? '#ea580c' : 'rgba(24,24,27,0.15)',
+                                                                        backgroundColor: qty > 0 ? 'rgba(255,247,237,0.9)' : 'rgb(250,250,250)',
+                                                                    }}
+                                                                    transition={{ duration: 0.25 }}
+                                                                    className="rounded-2xl border-2 p-3.5"
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div className="min-w-0 flex-1">
+                                                                            <h4 className="text-sm font-bold text-zinc-950">{tier.name}</h4>
+                                                                            <p className="mt-0.5 text-[11px] leading-tight text-zinc-500">
+                                                                                {tier.description || 'Akses masuk turnstile resmi'}
+                                                                            </p>
+                                                                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                                                <span className="font-anton text-xl text-zinc-950">{rupiah(tier.price)}</span>
+                                                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isSoldOut ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                                                                                    {isSoldOut ? 'Habis' : `Sisa ${remaining}`}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex shrink-0 items-center gap-2 pt-1">
+                                                                            <motion.button type="button" onClick={() => handleQuantityChange(invId, -1)} disabled={qty === 0 || isSoldOut} whileTap={{ scale: 0.88 }} aria-label={`Kurangi ${tier.name}`} className="grid h-9 w-9 place-items-center rounded-xl border-2 border-zinc-900/20 bg-white text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
+                                                                                <Minus className="h-4 w-4" />
+                                                                            </motion.button>
+                                                                            <span className="w-6 text-center font-anton text-lg text-zinc-950">
+                                                                                <AnimatePresence mode="popLayout" initial={false}>
+                                                                                    <motion.span key={qty} initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -8, opacity: 0 }} transition={{ duration: 0.18 }} className="block">{qty}</motion.span>
+                                                                                </AnimatePresence>
+                                                                            </span>
+                                                                            <motion.button type="button" onClick={() => handleQuantityChange(invId, 1)} disabled={isSoldOut || qty >= remaining} whileTap={{ scale: 0.88 }} aria-label={`Tambah ${tier.name}`} className="grid h-9 w-9 place-items-center rounded-xl border-2 border-zinc-950 bg-orange-600 text-white shadow-[2px_2px_0_#18181b] transition-colors hover:bg-orange-500 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
+                                                                                <Plus className="h-4 w-4" />
+                                                                            </motion.button>
+                                                                        </div>
+                                                                    </div>
+                                                                </motion.div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <p className="rounded-xl border border-dashed border-zinc-900/20 p-4 text-center text-xs text-zinc-400">Belum ada tiket tersedia untuk tanggal ini.</p>
+                                                )}
+                                            </div>
 
-                                {/* DAFTAR WAHANA & ATRAKSI */}
-                                <motion.section {...reveal(0.08)} className="rounded-3xl border border-zinc-900 bg-white p-6 shadow-[5px_5px_0_0_#18181b] sm:p-8">
-                                    <div className="mb-6 flex items-center justify-between gap-4 border-b border-dashed border-zinc-900/20 pb-4">
-                                        <div>
-                                            <h2 className="flex items-center gap-2 font-anton text-xl uppercase tracking-[0.03em] text-zinc-950 sm:text-2xl">
-                                                <Layers className="h-5 w-5 text-orange-600" />
-                                                Wahana &amp; Atraksi di Sini
-                                            </h2>
-                                            <p className="mt-1 text-xs text-zinc-500">
-                                                Temukan beragam instalasi dan wahana seru yang dapat Anda nikmati
+                                            {/* Promo */}
+                                            <div className="mt-6 border-t-2 border-dashed border-zinc-900/15 pt-4">
+                                                <label htmlFor="promo-code" className="mb-2 flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-zinc-700">
+                                                    <Tag className="h-3.5 w-3.5 text-orange-600" /> Kode Promo
+                                                </label>
+                                                <div className="flex gap-2">
+                                                    <input id="promo-code" type="text" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="MASUKKAN KODE" className="min-w-0 flex-1 rounded-xl border border-zinc-900/20 bg-zinc-50 px-3 py-2.5 text-xs font-bold uppercase tracking-wider outline-none focus:border-orange-500" />
+                                                    <button type="button" onClick={applyPromo} disabled={loadingPromo || !promoCode.trim()} className="inline-flex min-w-[88px] items-center justify-center gap-1.5 rounded-xl border-2 border-zinc-950 bg-zinc-950 px-3 text-xs font-bold text-white transition-colors hover:bg-orange-600 disabled:opacity-40 cursor-pointer">
+                                                        {loadingPromo ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Pakai'}
+                                                    </button>
+                                                </div>
+                                                <AnimatePresence mode="wait" initial={false}>
+                                                    {promoApplied && (
+                                                        <motion.p key={promoApplied} initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
+                                                            <CheckCircle2 className="h-3.5 w-3.5" /> {promoApplied} dipakai — hemat {rupiah(promoDiscount)}
+                                                        </motion.p>
+                                                    )}
+                                                    {promoError && (
+                                                        <motion.p key={promoError} initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-rose-600">
+                                                            <AlertCircle className="h-3.5 w-3.5" /> {promoError}
+                                                        </motion.p>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+
+                                            {/* Total & checkout */}
+                                            <div className="mt-5 rounded-2xl border-2 border-zinc-950 bg-zinc-50 p-4">
+                                                <div className="flex justify-between text-xs text-zinc-500">
+                                                    <span>Subtotal ({totalQuantity} tiket)</span>
+                                                    <span className="font-semibold text-zinc-800"><AnimatedValue value={subtotal} format={fmtRupiah} /></span>
+                                                </div>
+                                                {promoDiscount > 0 && (
+                                                    <div className="mt-1.5 flex justify-between text-xs font-semibold text-emerald-600">
+                                                        <span>Diskon</span>
+                                                        <span>-<AnimatedValue value={promoDiscount} format={fmtRupiah} /></span>
+                                                    </div>
+                                                )}
+                                                <div className="mt-3 flex items-baseline justify-between border-t-2 border-dashed border-zinc-900/15 pt-3">
+                                                    <span className="text-xs font-extrabold uppercase tracking-wider text-zinc-700">Total Bayar</span>
+                                                    <span className="font-anton text-3xl text-orange-600"><AnimatedValue value={finalTotal} format={fmtRupiah} /></span>
+                                                </div>
+                                            </div>
+
+                                            <motion.button
+                                                type="button"
+                                                onClick={handleCheckout}
+                                                disabled={totalQuantity === 0}
+                                                whileHover={totalQuantity ? { y: -2 } : {}}
+                                                whileTap={totalQuantity ? { scale: 0.98 } : {}}
+                                                className="relative mt-4 flex min-h-[54px] w-full items-center justify-center gap-2 overflow-hidden rounded-full border-2 border-zinc-950 bg-orange-600 text-xs font-extrabold uppercase tracking-widest text-white shadow-[4px_4px_0_#18181b] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                                            >
+                                                {totalQuantity > 0 && (
+                                                    <motion.span aria-hidden="true" animate={{ x: ['-120%', '220%'] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }} className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 blur-sm" />
+                                                )}
+                                                <Ticket className="relative z-10 h-4 w-4" />
+                                                <span className="relative z-10">Bayar Sekarang ({totalQuantity})</span>
+                                                <ArrowRight className="relative z-10 h-4 w-4" />
+                                            </motion.button>
+                                            <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] font-semibold text-zinc-500">
+                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> QRIS, Virtual Account & e-wallet · E-tiket QR instan
                                             </p>
                                         </div>
-                                        <span className="shrink-0 rounded-full border border-zinc-900/15 bg-zinc-950/[0.04] px-3 py-1 text-xs font-bold text-zinc-600">
-                                            {allAttractions.length} Wahana
-                                        </span>
-                                    </div>
+                                    </motion.div>
 
-                                    {/* Daftar Wahana Grid — muncul satu per satu */}
-                                    {allAttractions.length > 0 ? (
-                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                            {allAttractions.map((att, idx) => (
-                                                <motion.div
-                                                    key={att.id}
-                                                    initial={{ opacity: 0, y: 24 }}
-                                                    whileInView={{ opacity: 1, y: 0 }}
-                                                    viewport={{ once: true, amount: 0.2 }}
-                                                    transition={{ duration: 0.45, delay: (idx % 4) * 0.08, ease: EASE }}
-                                                    whileHover={{ y: -4 }}
-                                                    className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-zinc-900/15 bg-white transition-colors duration-200 hover:border-orange-500/60"
-                                                >
-                                                    {att.image_url && (
-                                                        <div className="h-36 w-full overflow-hidden bg-zinc-100">
-                                                            <img
-                                                                src={att.image_url}
-                                                                alt={att.name}
-                                                                loading="lazy"
-                                                                className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                                                            />
-                                                        </div>
-                                                    )}
-
-                                                    <div className="flex flex-1 flex-col justify-between space-y-2 p-4">
-                                                        <div>
-                                                            <div className="mb-1.5 flex items-center justify-between gap-2">
-                                                                <span className="rounded bg-zinc-950 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-white">
-                                                                    {att.zoneName}
-                                                                </span>
-                                                                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                                                                    att.status === 'OPERATIONAL'
-                                                                        ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700'
-                                                                        : att.status === 'MAINTENANCE'
-                                                                        ? 'border-amber-500/30 bg-amber-50 text-amber-700'
-                                                                        : 'border-rose-500/30 bg-rose-50 text-rose-700'
-                                                                }`}>
-                                                                    {att.status === 'OPERATIONAL' ? '✓ Operasional' :
-                                                                     att.status === 'MAINTENANCE' ? '⚠ Pemeliharaan' : '✕ Tutup'}
-                                                                </span>
-                                                            </div>
-
-                                                            <h3 className="text-base font-bold text-zinc-950 transition-colors group-hover:text-orange-600">
-                                                                {att.name}
-                                                            </h3>
-
-                                                            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-zinc-500">
-                                                                {att.description || 'Instalasi pameran dan wahana unggulan.'}
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="flex items-center justify-between border-t border-dashed border-zinc-900/15 pt-2 text-[11px] text-zinc-400">
-                                                            <span>Syarat Tinggi:</span>
-                                                            <span className="font-semibold text-zinc-700">
-                                                                {att.min_height_cm > 0 ? `Min. ${att.min_height_cm} cm` : 'Semua Umur'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </motion.div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="py-10 text-center text-xs text-zinc-400">
-                                            Belum ada wahana yang terdaftar di tempat ini.
-                                        </div>
-                                    )}
-                                </motion.section>
-
-                                {/* KUPON PROMO AKTIF — kartu mini bergaya tiket */}
-                                {promotions.length > 0 && (
-                                    <motion.section
-                                        {...reveal(0.12)}
-                                        className="rounded-3xl border border-orange-600/40 bg-gradient-to-br from-[#f5efda] to-orange-100/60 p-6 shadow-[5px_5px_0_0_#ea580c] sm:p-8"
-                                    >
-                                        <h2 className="mb-2 flex items-center gap-2 font-anton text-lg uppercase tracking-[0.03em] text-zinc-950 sm:text-xl">
-                                            <Tag className="h-5 w-5 text-orange-600" />
-                                            Promo &amp; Voucher Diskon Tersedia
-                                        </h2>
-                                        <p className="mb-4 text-xs text-zinc-600">
-                                            Gunakan kode voucher berikut saat melakukan checkout tiket:
-                                        </p>
-
-                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                            {promotions.map((p, idx) => (
-                                                <motion.div
-                                                    key={p.id}
-                                                    initial={{ opacity: 0, y: 20 }}
-                                                    whileInView={{ opacity: 1, y: 0 }}
-                                                    viewport={{ once: true }}
-                                                    transition={{ duration: 0.4, delay: idx * 0.08, ease: EASE }}
-                                                    whileHover={{ y: -3 }}
-                                                    className="relative flex items-center justify-between rounded-2xl border border-orange-600/30 bg-white p-4 shadow-[3px_3px_0_0_#18181b]"
-                                                >
-                                                    <div className="min-w-0">
-                                                        <span className="inline-block rounded-lg bg-orange-600 px-2.5 py-1 font-mono text-sm font-black tracking-widest text-white">
-                                                            {p.code}
-                                                        </span>
-                                                        <p className="mt-2 truncate text-xs font-medium text-zinc-500 pr-2">
-                                                            {p.description || `Diskon ${p.discount_type === 'PERCENTAGE' ? `${p.discount_value}%` : `Rp ${Number(p.discount_value).toLocaleString('id-ID')}`}`}
-                                                        </p>
-                                                    </div>
-                                                    <div className="shrink-0 text-right">
-                                                        <span className="block text-[10px] font-bold uppercase text-zinc-400">Berlaku s/d</span>
-                                                        <span className="text-xs font-semibold text-zinc-700">{p.valid_until?.substring(0, 10)}</span>
-                                                    </div>
-                                                </motion.div>
-                                            ))}
-                                        </div>
-                                    </motion.section>
-                                )}
-
-                            </div>
-
-                            {/* KOLOM KANAN (1/3): KARTU TIKET STICKY PEMILIHAN & PEMBAYARAN LANGSUNG */}
-                            <div className="space-y-6">
-                                <motion.aside
-                                    initial={{ opacity: 0, x: 32 }}
-                                    whileInView={{ opacity: 1, x: 0 }}
-                                    viewport={{ once: true, amount: 0.2 }}
-                                    transition={{ duration: 0.55, delay: 0.15, ease: EASE }}
-                                    className="sticky top-24 overflow-hidden rounded-3xl border border-zinc-900 bg-white shadow-[6px_6px_0_0_#18181b]"
-                                >
-                                    {/* Band atas bergaya tiket */}
-                                    <div className="flex items-center justify-between border-b border-dashed border-white/20 bg-zinc-950 px-6 py-3">
-                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Beli Tiket Langsung</span>
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-orange-400">Resmi &amp; Terverifikasi</span>
-                                    </div>
-
-                                    <div className="relative p-6 sm:p-7">
-                                        {/* Notch sobekan di bawah band */}
-                                        <span aria-hidden="true" className="absolute -top-[9px] left-1/2 h-[18px] w-[18px] -translate-x-1/2 rounded-full border border-zinc-900 bg-[#f5efda]" />
-
-                                        {/* Pilihan Tanggal Kunjungan */}
-                                        <div className="mb-5">
-                                            <label className="mb-1.5 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-zinc-700">
-                                                <span className="flex items-center gap-1.5">
-                                                    <Calendar className="h-3.5 w-3.5 text-orange-600" />
-                                                    Tanggal Kunjungan
+                                    {/* INFO PENDUKUNG (sticky) */}
+                                    <div className="space-y-4 lg:sticky lg:top-24">
+                                        {/* Jam operasional detail */}
+                                        <motion.div {...reveal(0.08)} className="rounded-[1.4rem] border-2 border-zinc-950 bg-white p-5 shadow-[5px_5px_0_#18181b]">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <h3 className="flex items-center gap-2 font-anton text-xl uppercase text-zinc-950">
+                                                    <Clock className="h-5 w-5 text-orange-600" /> Jam Operasional
+                                                </h3>
+                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${status.isOpen ? 'bg-emerald-600 text-white' : 'bg-zinc-950 text-zinc-300'}`}>
+                                                    {status.isOpen ? 'Buka' : 'Tutup'}
                                                 </span>
-                                            </label>
-                                            <input
-                                                type="date"
-                                                min={today}
-                                                value={visitDate}
-                                                onChange={(e) => handleDateChange(e.target.value)}
-                                                className="w-full rounded-xl border border-zinc-900/20 bg-zinc-50 px-3.5 py-2.5 text-sm font-semibold text-zinc-900 outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                                            />
-                                        </div>
+                                            </div>
+                                            <p className="mt-3 font-anton text-3xl leading-none text-[#B8340E]">{status.hours}</p>
+                                            <div className="mt-4 space-y-2 border-t border-dashed border-zinc-900/20 pt-3 text-xs">
+                                                <div className="flex justify-between"><span className="text-zinc-500">Senin – Jumat</span><span className="font-bold text-zinc-900">{status.hours}</span></div>
+                                                <div className="flex justify-between"><span className="text-zinc-500">Sabtu – Minggu</span><span className="font-bold text-zinc-900">{status.hours}</span></div>
+                                                {holiday && <div className="flex justify-between text-rose-600"><span>Hari libur nasional</span><span className="font-bold">Buka sesuai jadwal</span></div>}
+                                            </div>
+                                            <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
+                                                Disarankan tiba 15 menit sebelum jam buka untuk antrean gerbang turnstile.
+                                            </p>
+                                        </motion.div>
 
-                                        {/* Pilihan Kategori Tiket & Kontrol Jumlah */}
-                                        <div className="mb-5 space-y-3">
-                                            <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700">
-                                                Pilih Tiket:
-                                            </h4>
+                                        {/* Lokasi */}
+                                        <motion.div {...reveal(0.12)} className="rounded-[1.4rem] border-2 border-zinc-950 bg-white p-5 shadow-[5px_5px_0_#18181b]">
+                                            <h3 className="flex items-center gap-2 font-anton text-lg uppercase text-zinc-950">
+                                                <MapPin className="h-5 w-5 text-orange-600" /> Lokasi
+                                            </h3>
+                                            <p className="mt-2 text-xs leading-relaxed text-zinc-600">{park.location_address || park.city || 'Alamat belum tersedia.'}</p>
+                                            <a
+                                                href={park.latitude && park.longitude
+                                                    ? `https://www.google.com/maps/search/?api=1&query=${park.latitude},${park.longitude}`
+                                                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(park.location_address || park.name)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="mt-3 inline-flex min-h-[40px] items-center gap-1.5 rounded-full border-2 border-zinc-950 bg-zinc-950 px-4 text-[10px] font-extrabold uppercase tracking-widest text-white transition-colors hover:bg-orange-600 cursor-pointer"
+                                            >
+                                                Buka di Maps <ExternalLink className="h-3.5 w-3.5" />
+                                            </a>
+                                        </motion.div>
 
-                                            {park.ticket_tiers?.map((tier) => {
-                                                const invId = tier.inventory_id;
-                                                const qty = quantities[invId] || 0;
-                                                const isSoldOut = tier.quota <= 0;
-
-                                                return (
-                                                    <div
-                                                        key={tier.id}
-                                                        className={`rounded-2xl border p-3.5 transition-all ${
-                                                            qty > 0
-                                                                ? 'border-orange-600 bg-orange-50/50 shadow-sm'
-                                                                : 'border-zinc-900/15 bg-zinc-50'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div className="min-w-0 flex-1">
-                                                                <h5 className="text-xs font-bold text-zinc-950">{tier.name}</h5>
-                                                                <p className="mt-0.5 text-[11px] text-zinc-500 leading-tight">
-                                                                    {tier.description || 'Akses turnstile resmi'}
-                                                                </p>
-                                                                <div className="mt-1.5 flex items-center gap-2">
-                                                                    <span className="font-anton text-base text-zinc-950">
-                                                                        Rp {new Intl.NumberFormat('id-ID').format(tier.price)}
-                                                                    </span>
-                                                                    <span className="text-[10px] text-zinc-400">
-                                                                        {isSoldOut ? 'Habis' : `Sisa ${tier.quota}`}
-                                                                    </span>
-                                                                </div>
+                                        {/* Promo ringkas */}
+                                        {promotions.length > 0 && (
+                                            <motion.div {...reveal(0.16)} className="rounded-[1.4rem] border-2 border-orange-600/50 bg-orange-50/70 p-5">
+                                                <h3 className="flex items-center gap-2 font-anton text-lg uppercase text-zinc-950">
+                                                    <Gift className="h-5 w-5 text-orange-600" /> Promo Tersedia
+                                                </h3>
+                                                <div className="mt-3 space-y-2">
+                                                    {promotions.slice(0, 3).map((p) => (
+                                                        <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border border-orange-600/20 bg-white p-2.5">
+                                                            <div className="min-w-0">
+                                                                <p className="truncate font-mono text-xs font-extrabold tracking-wider text-zinc-950">{p.code}</p>
+                                                                <p className="truncate text-[10px] text-zinc-500">{p.discount_type === 'PERCENTAGE' ? `Diskon ${p.discount_value}%` : `Potong ${rupiah(p.discount_value)}`}</p>
                                                             </div>
-
-                                                            {/* Quantity Buttons */}
-                                                            <div className="flex items-center gap-2 shrink-0 pt-1">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleQuantityChange(invId, -1)}
-                                                                    disabled={qty === 0 || isSoldOut}
-                                                                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-900/20 bg-white text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                                                                >
-                                                                    <Minus className="h-3 w-3" />
-                                                                </button>
-                                                                <span className="w-5 text-center text-xs font-bold text-zinc-950">
-                                                                    {qty}
-                                                                </span>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleQuantityChange(invId, 1)}
-                                                                    disabled={isSoldOut || qty >= tier.quota}
-                                                                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-900/20 bg-orange-600 text-white transition hover:bg-orange-500 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                                                                >
-                                                                    <Plus className="h-3 w-3" />
-                                                                </button>
-                                                            </div>
+                                                            <button type="button" onClick={() => copyCode(p.code)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-zinc-900/15 bg-zinc-50 text-orange-600 transition-colors hover:border-orange-500 cursor-pointer" aria-label={`Salin kode ${p.code}`}>
+                                                                {copiedCode === p.code ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                                                            </button>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {/* Input Promo Code */}
-                                        <div className="mb-5 border-t border-dashed border-zinc-900/15 pt-4">
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={promoCode}
-                                                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                                    placeholder="Punya Kode Promo?"
-                                                    className="w-full rounded-xl border border-zinc-900/20 bg-zinc-50 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-900 outline-none focus:border-orange-500"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={applyPromo}
-                                                    disabled={loadingPromo || !promoCode.trim()}
-                                                    className="shrink-0 rounded-xl bg-zinc-950 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-zinc-800 disabled:opacity-40 cursor-pointer"
-                                                >
-                                                    {loadingPromo ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Gunakan'}
-                                                </button>
-                                            </div>
-                                            {promoApplied && (
-                                                <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                                    Kode {promoApplied} diterapkan (-Rp {new Intl.NumberFormat('id-ID').format(promoDiscount)})
-                                                </p>
-                                            )}
-                                            {promoError && (
-                                                <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-rose-600">
-                                                    <AlertCircle className="h-3.5 w-3.5" />
-                                                    {promoError}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Total Summary */}
-                                        <div className="mb-5 rounded-2xl border border-zinc-900/10 bg-zinc-50 p-4 space-y-2">
-                                            <div className="flex justify-between text-xs text-zinc-500">
-                                                <span>Subtotal ({totalQuantity} tiket)</span>
-                                                <span className="font-semibold text-zinc-800">Rp {new Intl.NumberFormat('id-ID').format(subtotal)}</span>
-                                            </div>
-                                            {promoDiscount > 0 && (
-                                                <div className="flex justify-between text-xs text-emerald-600 font-semibold">
-                                                    <span>Diskon Promo</span>
-                                                    <span>-Rp {new Intl.NumberFormat('id-ID').format(promoDiscount)}</span>
+                                                    ))}
                                                 </div>
-                                            )}
-                                            <div className="border-t border-dashed border-zinc-900/10 pt-2 flex items-baseline justify-between">
-                                                <span className="text-xs font-bold uppercase text-zinc-700">Total Pembayaran</span>
-                                                <span className="font-anton text-2xl text-orange-600">
-                                                    Rp {new Intl.NumberFormat('id-ID').format(finalTotal)}
-                                                </span>
-                                            </div>
-                                        </div>
+                                                <p className="mt-2 text-[10px] text-zinc-500">Ketuk kode untuk menyalin, lalu masukkan di kolom promo.</p>
+                                            </motion.div>
+                                        )}
 
-                                        {/* Tombol Lanjut ke Pembayaran */}
-                                        <button
-                                            type="button"
-                                            onClick={handleCheckout}
-                                            disabled={totalQuantity === 0}
-                                            className="flex w-full items-center justify-center gap-2 rounded-full bg-orange-600 py-3.5 text-center text-xs font-extrabold uppercase tracking-widest text-white shadow-lg shadow-orange-600/30 transition-all hover:bg-orange-500 active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                                        >
-                                            <Ticket className="h-4 w-4" />
-                                            <span>Bayar Sekarang ({totalQuantity})</span>
-                                            <ArrowRight className="h-4 w-4" />
-                                        </button>
-
-                                        <div className="mt-5 space-y-2 text-[11px] text-zinc-500">
-                                            <div className="flex items-center gap-2">
-                                                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-                                                <span>Pembayaran instan QRIS, Virtual Account, & Kartu</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                                                <span>E-Ticket QR Code resmi instan terverifikasi</span>
-                                            </div>
-                                        </div>
+                                        {/* Wahana singkat */}
+                                        {allAttractions.length > 0 && (
+                                            <motion.div {...reveal(0.2)} className="rounded-[1.4rem] border-2 border-zinc-950 bg-white p-5 shadow-[5px_5px_0_#18181b]">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="flex items-center gap-2 font-anton text-lg uppercase text-zinc-950">
+                                                        <Sparkles className="h-5 w-5 text-orange-600" /> Wahana Unggulan
+                                                    </h3>
+                                                    <span className="text-[10px] font-bold text-emerald-600">{operationalCount}/{allAttractions.length} buka</span>
+                                                </div>
+                                                <ul className="mt-3 space-y-2">
+                                                    {visibleAttractions.map((a) => (
+                                                        <li key={a.id} className="flex items-center justify-between gap-2 text-xs">
+                                                            <span className="truncate text-zinc-700">{a.name}</span>
+                                                            <span className={`shrink-0 h-1.5 w-1.5 rounded-full ${a.status === 'OPERATIONAL' ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-label={a.status} />
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                                {allAttractions.length > 4 && (
+                                                    <button type="button" onClick={() => setShowAllAttractions((v) => !v)} className="mt-3 text-[11px] font-bold uppercase tracking-wider text-orange-600 hover:underline cursor-pointer">
+                                                        {showAllAttractions ? 'Tampilkan lebih sedikit' : `Lihat semua (${allAttractions.length})`}
+                                                    </button>
+                                                )}
+                                            </motion.div>
+                                        )}
                                     </div>
-                                </motion.aside>
+                                </div>
                             </div>
+                        </section>
+                    </main>
 
+                    <footer className="bg-zinc-950 pb-8 pt-6 text-zinc-400">
+                        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-3 sm:px-5 lg:px-6">
+                            <div className="flex items-center gap-3">
+                                <img src="/images/vurasi-logo.png" alt="Vurasi" width="1180" height="490" className="h-7 w-auto" />
+                                <span className="text-sm italic leading-none text-orange-500">paviliun seni</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-4 text-xs">
+                                <Link href="/tickets" className="hover:text-white cursor-pointer">Destinasi lain</Link>
+                                <Link href="/promotions" className="hover:text-white cursor-pointer">Promo</Link>
+                                <Link href="/#tentang" className="hover:text-white cursor-pointer">Tentang Kami</Link>
+                                <button type="button" onClick={() => setLookupModalOpen(true)} className="hover:text-white cursor-pointer">Cek E-Tiket</button>
+                            </div>
+                            <span className="text-[10px] uppercase tracking-widest text-zinc-600">© {new Date().getFullYear()} Vurasi MultiPark</span>
                         </div>
-
-                        {/* Link kembali ke destinasi lain */}
-                        <motion.div {...reveal(0)} className="mt-12 flex justify-center">
-                            <Link
-                                href="/"
-                                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-900/20 bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-zinc-700 transition-colors hover:border-orange-500 hover:text-orange-600 cursor-pointer"
-                            >
-                                Jelajahi Destinasi Lain
-                                <ChevronRight className="h-4 w-4" />
-                            </Link>
-                        </motion.div>
-                    </div>
-
-                    {/* FOOTER MINI */}
-                    <footer className="mt-8 border-t border-white/10 bg-zinc-950 py-8 text-center text-xs text-zinc-500">
-                        <p>
-                            © {new Date().getFullYear()} <span className="text-zinc-300">{park.name}</span> · Sistem Pemesanan Tiket Multi-Park
-                        </p>
                     </footer>
 
+                    <MyTicketsModal open={lookupModalOpen} onClose={() => setLookupModalOpen(false)} />
                 </div>
             </MotionConfig>
         </>

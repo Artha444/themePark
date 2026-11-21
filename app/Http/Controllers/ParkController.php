@@ -76,13 +76,13 @@ class ParkController extends Controller
                 ];
             });
 
-        // Ambil promo aktif lintas destinasi
+        // Ambil semua promo aktif lintas destinasi (ditambahkan oleh admin)
         $now = Carbon::now();
         $promotions = Promotion::with('park')
             ->where('is_active', true)
             ->where('valid_from', '<=', $now)
             ->where('valid_until', '>=', $now)
-            ->take(3)
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return Inertia::render('Welcome', [

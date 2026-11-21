@@ -1,0 +1,52 @@
+/* Vurasi tokens · warm brand palette + admission-ticket surface · system: Vibrant & Block-based (ui-ux-pro-max) */
+:root {
+  color-scheme: light;
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+  --text-xs: 0.8125rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.25rem; --text-xl: 1.5625rem; --text-2xl: 1.953rem; --text-3xl: 2.441rem;
+  --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.75rem); --text-display: clamp(2.75rem, 5vw + 1rem, 5.25rem);
+  --text-section: clamp(2rem, 2.5vw + 1rem, 3.5rem); --text-title: clamp(1.25rem, 0.75vw + 0.875rem, 1.625rem); --text-lead: clamp(1.125rem, 0.35vw + 1rem, 1.375rem);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+  --container: 1440px; --gutter: 64px; --gap-columns: 32px; --section-gap-s: 120px; --section-gap: 144px; --section-gap-l: 176px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+
+  /* Project palette, mixed in OKLCH toward the warm rust anchor. */
+  --color-canvas: oklch(98.2% 0.012 78);
+  --color-paper: oklch(96.5% 0.016 76);
+  --color-paper-2: oklch(93% 0.022 74);
+  --color-paper-3: oklch(98.5% 0.01 78);
+  --color-ink: oklch(23% 0.014 55);
+  --color-ink-2: oklch(33% 0.016 55);
+  --color-muted: oklch(47% 0.018 58);
+  --color-rule: oklch(87% 0.022 65);
+  --color-white: oklch(99.4% 0.004 80);
+  --color-accent: oklch(52% 0.17 42);
+  --color-accent-deep: oklch(43% 0.15 42);
+  --color-accent-ink: oklch(98.8% 0.008 78);
+  --color-focus: oklch(48% 0.19 42);
+  --color-slot: oklch(95% 0.02 60);
+  --color-error: oklch(52% 0.19 27);
+  --color-success: oklch(48% 0.12 150);
+
+  /* The project's two faces, kept as the two-family system. */
+  --font-display: 'Anton', Impact, 'Arial Narrow', sans-serif;
+  --font-body: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 18px; --radius-control: 12px; --radius-pill: 999px;
+  --rule-hair: 1px; --rule-bar: 2px; --diecut: 6px;
+  --shadow-card: 5px 6px 0 var(--color-ink);
+  --shadow-press: 1px 1px 0 var(--color-ink);
+
+  /* Admission-ticket surface (Vibrant & Block-based, warm brand palette). */
+  --color-ticket-surface: oklch(99% 0.006 78);
+  --color-ticket-edge: oklch(88% 0.025 62);
+  --color-ticket-perf: oklch(99% 0.006 78 / 0.72);
+  --color-ticket-muted: oklch(98% 0.01 78 / 0.82);
+  --color-ticket-field: oklch(62% 0.024 62);
+  --shadow-ticket: 0 20px 45px -26px oklch(35% 0.09 45 / 0.55);
+  --shadow-stub-btn: 0 5px 0 oklch(40% 0.12 42 / 0.5);
+  --shadow-stub-btn-pressed: 0 2px 0 oklch(40% 0.12 42 / 0.5);
+  --radius-ticket: 20px;
+  --text-ticket-head: clamp(1.75rem, 2.2vw, 2.125rem);
+  --tracking-display: -0.01em; --display-weight: 400;
+}

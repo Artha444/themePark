@@ -1,0 +1,12 @@
+{
+  "scanned": "2026-11-20",
+  "findings": {
+    "fonts": "Anton display + Figtree body, tailwind.config.js L15-27; no token layer before this run",
+    "palette": "rust #B8340E, cream #fffaf2, orange; literal hex in Welcome.jsx and app.css L64-188",
+    "motion": "framer-motion 14 (package.json L29) plus CSS keyframes in app.css",
+    "spacing": "Tailwind 4pt default scale, no custom --space-* tokens",
+    "framework": "Laravel + Inertia React 18, Tailwind 3.2, Vite 8 (package.json)"
+  },
+  "preserve": ["font stack", "rust and cream palette intent", "motion library", "form wiring and /tickets query"],
+  "introduce": ["Hallmark OKLCH tokens", "extracted die-cut component", "eight states", "component stamp", "sloplint sweep"]
+}

@@ -4,7 +4,7 @@ import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import {
     MapPin, Clock, Search, X, ChevronRight, ChevronLeft,
     Sparkles, CheckCircle2, ShieldCheck, Plus, ArrowUp,
-    SlidersHorizontal, Compass, ArrowUpDown,
+    Compass, ArrowUpDown,
 } from 'lucide-react';
 import SiteNavbar, { NAV_SECTIONS } from '@/Components/SiteNavbar';
 import MyTicketsModal from '@/Components/MyTicketsModal';
@@ -43,7 +43,7 @@ function SectionDivider({ label = 'Vurasi' }) {
             viewport={{ once: true, margin: '-40px' }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
             aria-hidden="true"
-            className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-8 sm:gap-4 sm:px-6 sm:py-10 lg:px-8"
+            className="mx-auto flex max-w-[1440px] items-center gap-3 px-3 py-8 sm:gap-4 sm:px-5 sm:py-10 lg:px-6"
         >
             <span className="h-px flex-1 border-t-2 border-dashed border-zinc-300" />
             <motion.span
@@ -121,11 +121,11 @@ function FaqItem({ faq, idx, defaultOpen = false }) {
     );
 }
 
-/* Navigasi bersama - Pesan Cepat aktif saat di halaman tiket */
+/* Navigasi bersama - Daftar Park aktif saat di halaman tiket */
 const NAV_LINKS = NAV_SECTIONS.map((s) => ({
     label: s.label,
     href: s.href ?? `/#${s.id}`,
-    active: s.href === '/tickets' || s.id === 'quick-booking',
+    active: s.href === '/tickets',
 }));
 
 const ITEMS_PER_PAGE = 12;
@@ -267,9 +267,13 @@ export default function TicketCatalogIndex({
                     {/* =========================================================
                         HERO BANNER KATALOG (Gaya Landing Page Vurasi)
                     ========================================================= */}
-                    <section className="relative overflow-hidden bg-gradient-to-b from-orange-100/30 via-sky-50/40 to-zinc-50 pb-12 pt-28 sm:pb-16 sm:pt-32">
-                        {/* Dot pattern latar terang ala landing page */}
-                        <div className="dots-bg-light absolute inset-0 opacity-40 pointer-events-none" />
+                    <section className="relative overflow-hidden bg-white pb-12 pt-28 sm:pb-16 sm:pt-32">
+                        {/* Latar terang ala hero landing: dot pattern + blob biru/oranye */}
+                        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                            <div className="dots-bg-light absolute inset-0 opacity-60" />
+                            <div className="absolute -right-28 -top-28 h-[30rem] w-[30rem] rounded-full bg-[#62C6EA]/20 blur-3xl" />
+                            <div className="absolute -left-36 bottom-0 h-[24rem] w-[24rem] rounded-full bg-orange-300/20 blur-3xl" />
+                        </div>
 
                         {/* Dekorasi floating tiket & kilau */}
                         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -303,15 +307,15 @@ export default function TicketCatalogIndex({
                             </motion.span>
                         </div>
 
-                        <div className="relative z-10 mx-auto max-w-5xl px-4 text-center sm:px-6">
+                        <div className="relative z-10 mx-auto max-w-[1200px] px-3 text-center sm:px-5">
                             {/* Pill Header */}
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ duration: 0.5, ease: EASE }}
-                                className="inline-flex items-center gap-2 rounded-full border border-orange-500/25 bg-orange-50 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-orange-700 shadow-sm"
+                                className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-950 bg-orange-600 px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#18181b]"
                             >
-                                <Sparkles className="h-3.5 w-3.5 text-orange-600" />
+                                <Sparkles className="h-3.5 w-3.5 text-white" />
                                 Katalog Resmi Wahana &amp; Pameran Seni ({parks.length} Tempat)
                             </motion.div>
 
@@ -339,17 +343,17 @@ export default function TicketCatalogIndex({
                                 initial={{ opacity: 0, y: 16 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
-                                className="mt-7 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-zinc-700 sm:gap-6"
+                                className="mt-8 flex flex-wrap items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-wider text-zinc-800 sm:gap-5"
                             >
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 border border-zinc-200/80 shadow-xs">
+                                <span className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-900 bg-white px-4 py-2 shadow-[3px_3px_0_#18181b]">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                                     E-Tiket QR Terbit Instan
                                 </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 border border-zinc-200/80 shadow-xs">
+                                <span className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-900 bg-white px-4 py-2 shadow-[3px_3px_0_#18181b]">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                                     Garansi Bebas Reschedule
                                 </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 border border-zinc-200/80 shadow-xs">
+                                <span className="inline-flex items-center gap-2 rounded-full border-2 border-zinc-900 bg-white px-4 py-2 shadow-[3px_3px_0_#18181b]">
                                     <ShieldCheck className="h-4 w-4 text-orange-600" />
                                     100% Kuota Gerbang Resmi
                                 </span>
@@ -360,9 +364,8 @@ export default function TicketCatalogIndex({
                     {/* =========================================================
                         PANEL FILTER & PENCARIAN (Dirancang untuk 100+ Destinasi)
                     ========================================================= */}
-                    <div ref={catalogRef} className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 -mt-4 relative z-20">
-                        <div className="rounded-3xl border border-zinc-200/90 bg-white p-4 sm:p-6 shadow-xl shadow-zinc-900/5 space-y-4">
-                            
+                    <div ref={catalogRef} className="mx-auto max-w-[1440px] px-3 sm:px-5 lg:px-6 -mt-4 relative z-20">
+                        <div className="rounded-3xl border-2 border-zinc-900 bg-white p-4 sm:p-6 shadow-[6px_6px_0_#18181b] space-y-5">
                             {/* Baris Atas: Input Search & Dropdown Sorting */}
                             <div className="flex flex-col sm:flex-row gap-3">
                                 {/* Search Input */}
@@ -373,7 +376,7 @@ export default function TicketCatalogIndex({
                                         placeholder="Cari nama destinasi, wahana, kota, atau alamat..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-3 pl-11 pr-10 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition focus:border-orange-500 focus:bg-white shadow-xs"
+                                        className="w-full rounded-2xl border-2 border-zinc-900/15 bg-zinc-50 py-3 pl-11 pr-10 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition focus:border-orange-500 focus:bg-white"
                                     />
                                     {searchQuery && (
                                         <button
@@ -395,7 +398,7 @@ export default function TicketCatalogIndex({
                                             value={sortBy}
                                             onChange={(e) => setSortBy(e.target.value)}
                                             aria-label="Urutkan destinasi"
-                                            className="w-full appearance-none rounded-2xl border border-zinc-200 bg-zinc-50 py-3 pl-10 pr-8 text-xs font-bold text-zinc-700 outline-none transition focus:border-orange-500 focus:bg-white cursor-pointer shadow-xs"
+                                            className="w-full appearance-none rounded-2xl border-2 border-zinc-900/15 bg-zinc-50 py-3 pl-10 pr-8 text-xs font-bold text-zinc-700 outline-none transition focus:border-orange-500 focus:bg-white cursor-pointer"
                                         >
                                             <option value="name_asc">Nama (A &rarr; Z)</option>
                                             <option value="name_desc">Nama (Z &rarr; A)</option>
@@ -411,10 +414,10 @@ export default function TicketCatalogIndex({
                                 <button
                                     type="button"
                                     onClick={() => setSelectedCategory('ALL')}
-                                    className={`rounded-full px-4 py-2 text-xs font-bold transition whitespace-nowrap cursor-pointer shadow-xs ${
+                                    className={`rounded-full border-2 px-4 py-2 text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                                         selectedCategory === 'ALL'
-                                            ? 'bg-orange-600 text-white'
-                                            : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                                            ? 'border-zinc-900 bg-orange-600 text-white shadow-[2px_2px_0_#18181b]'
+                                            : 'border-zinc-900/10 bg-white text-zinc-700 hover:border-zinc-900/30 hover:bg-zinc-50'
                                     }`}
                                 >
                                     Semua ({parks.length})
@@ -427,10 +430,10 @@ export default function TicketCatalogIndex({
                                             key={cat}
                                             type="button"
                                             onClick={() => setSelectedCategory(cat)}
-                                            className={`rounded-full px-4 py-2 text-xs font-bold transition whitespace-nowrap cursor-pointer shadow-xs ${
+                                            className={`rounded-full border-2 px-4 py-2 text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                                                 isSelected
-                                                    ? 'bg-orange-600 text-white'
-                                                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                                                    ? 'border-zinc-900 bg-orange-600 text-white shadow-[2px_2px_0_#18181b]'
+                                                    : 'border-zinc-900/10 bg-white text-zinc-700 hover:border-zinc-900/30 hover:bg-zinc-50'
                                             }`}
                                         >
                                             {cat} {count > 0 && `(${count})`}
@@ -470,10 +473,10 @@ export default function TicketCatalogIndex({
                     {/* =========================================================
                         GRID KARTU PARK (SIMPLE, ELEGAN, CEPAT DIBACA)
                     ========================================================= */}
-                    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-8">
+                    <main className="mx-auto max-w-[1440px] px-3 sm:px-5 lg:px-6 mt-8">
                         {paginatedParks.length === 0 ? (
-                            <div className="rounded-3xl border border-dashed border-zinc-300 bg-white p-12 text-center my-6">
-                                <div className="h-16 w-16 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto mb-4 border border-orange-100">
+                            <div className="rounded-3xl border-2 border-dashed border-zinc-900/20 bg-white p-12 text-center my-6 shadow-[4px_4px_0_#18181b]">
+                                <div className="h-16 w-16 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto mb-4 border-2 border-zinc-900 shadow-[3px_3px_0_#18181b]">
                                     <Compass className="h-8 w-8" />
                                 </div>
                                 <h3 className="font-anton text-2xl uppercase tracking-wide text-zinc-900">
@@ -488,7 +491,7 @@ export default function TicketCatalogIndex({
                                         setSearchQuery('');
                                         setSelectedCategory('ALL');
                                     }}
-                                    className="mt-5 inline-flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-orange-600/30 hover:bg-orange-500 transition cursor-pointer"
+                                    className="mt-5 inline-flex items-center gap-2 rounded-full border-2 border-zinc-900 bg-orange-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-[3px_3px_0_#18181b] hover:bg-orange-500 transition cursor-pointer"
                                 >
                                     Tampilkan Semua Destinasi
                                 </button>
@@ -502,10 +505,10 @@ export default function TicketCatalogIndex({
                                         <Link
                                             key={p.id}
                                             href={`/parks/${p.slug || p.id}`}
-                                            className={`group rounded-2xl border bg-white overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer ${
+                                            className={`group relative rounded-2xl border-2 border-zinc-900 bg-white overflow-hidden shadow-[4px_4px_0_#18181b] hover:-translate-y-1 hover:shadow-[7px_7px_0_#18181b] transition-all duration-300 flex flex-col cursor-pointer ${
                                                 hasTickets
-                                                    ? 'border-zinc-200/90 hover:border-orange-500/50'
-                                                    : 'border-zinc-200/70 hover:border-zinc-400/60'
+                                                    ? 'hover:border-orange-600'
+                                                    : 'hover:border-zinc-500'
                                             }`}
                                         >
                                             {/* Thumbnail Gambar Park */}
@@ -525,7 +528,7 @@ export default function TicketCatalogIndex({
 
                                                 {/* Chip Kategori di pojok atas kiri */}
                                                 <div className="absolute left-3 top-3">
-                                                    <span className="rounded-full bg-white/95 backdrop-blur-md px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-zinc-800 shadow-xs">
+                                                    <span className="rounded-full border-2 border-zinc-900 bg-white px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-zinc-900 shadow-[2px_2px_0_#18181b]">
                                                         {p.category}
                                                     </span>
                                                 </div>
@@ -534,13 +537,13 @@ export default function TicketCatalogIndex({
                                                 <div className="absolute right-3 top-3">
                                                     {hasTickets ? (
                                                         p.open_time && (
-                                                            <span className="rounded-full bg-zinc-950/70 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white flex items-center gap-1">
+                                                            <span className="rounded-full border border-white/40 bg-zinc-950/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white flex items-center gap-1">
                                                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                                                                 Buka
                                                             </span>
                                                         )
                                                     ) : (
-                                                        <span className="rounded-full bg-amber-500/90 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow-xs">
+                                                        <span className="rounded-full border-2 border-zinc-900 bg-amber-400 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-zinc-950 shadow-[2px_2px_0_#18181b]">
                                                             Segera Hadir
                                                         </span>
                                                     )}
@@ -576,7 +579,7 @@ export default function TicketCatalogIndex({
                                                 </div>
 
                                                 {/* Action Bar Bawah (Harga Mulai Dari + Tombol Aksi) */}
-                                                <div className="border-t border-zinc-100 pt-3 flex items-center justify-between">
+                                                <div className="border-t-2 border-dashed border-zinc-900/15 pt-3 flex items-center justify-between">
                                                     <div>
                                                         {hasTickets ? (
                                                             <>
@@ -600,12 +603,12 @@ export default function TicketCatalogIndex({
                                                     </div>
 
                                                     {hasTickets ? (
-                                                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 group-hover:bg-orange-500 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-xs group-hover:shadow-orange-600/30 transition">
+                                                        <span className="inline-flex items-center gap-1 rounded-full border-2 border-zinc-900 bg-orange-600 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-[2px_2px_0_#18181b] group-hover:bg-orange-500 transition">
                                                             <span>Pesan</span>
                                                             <ChevronRight className="h-3.5 w-3.5" />
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 group-hover:bg-zinc-200 text-zinc-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition">
+                                                        <span className="inline-flex items-center gap-1 rounded-full border-2 border-zinc-900/15 bg-zinc-100 text-zinc-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wider group-hover:bg-zinc-200 transition">
                                                             <span>Lihat Info</span>
                                                             <ChevronRight className="h-3.5 w-3.5 text-zinc-400" />
                                                         </span>
@@ -634,7 +637,7 @@ export default function TicketCatalogIndex({
                                         disabled={currentPage === 1}
                                         onClick={() => handlePageChange(currentPage - 1)}
                                         aria-label="Halaman sebelumnya"
-                                        className="flex h-9 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 text-xs font-bold text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                                        className="flex h-9 items-center gap-1 rounded-full border-2 border-zinc-900/20 bg-white px-3 text-xs font-bold text-zinc-700 transition hover:border-zinc-900 hover:bg-zinc-50 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                         <span className="hidden sm:inline">Sebelumnya</span>
@@ -658,8 +661,8 @@ export default function TicketCatalogIndex({
                                                 onClick={() => handlePageChange(num)}
                                                 className={`h-9 w-9 rounded-full text-xs font-bold transition cursor-pointer ${
                                                     isActive
-                                                        ? 'bg-orange-600 text-white shadow-md shadow-orange-600/30'
-                                                        : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100'
+                                                        ? 'border-2 border-zinc-900 bg-orange-600 text-white shadow-[2px_2px_0_#18181b]'
+                                                        : 'border-2 border-zinc-900/20 bg-white text-zinc-700 hover:border-zinc-900 hover:bg-zinc-50'
                                                 }`}
                                             >
                                                 {num}
@@ -673,7 +676,7 @@ export default function TicketCatalogIndex({
                                         disabled={currentPage === totalPages}
                                         onClick={() => handlePageChange(currentPage + 1)}
                                         aria-label="Halaman berikutnya"
-                                        className="flex h-9 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 text-xs font-bold text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                                        className="flex h-9 items-center gap-1 rounded-full border-2 border-zinc-900/20 bg-white px-3 text-xs font-bold text-zinc-700 transition hover:border-zinc-900 hover:bg-zinc-50 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
                                     >
                                         <span className="hidden sm:inline">Berikutnya</span>
                                         <ChevronRight className="h-4 w-4" />
@@ -691,48 +694,68 @@ export default function TicketCatalogIndex({
                     {/* =========================================================
                         SECTION FAQ / PERTANYAAN UMUM
                     ========================================================= */}
-                    <section className="mx-auto max-w-4xl px-4 sm:px-6">
-                        <div className="text-center mb-8">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-600">
-                                &sect; Panduan &amp; Bantuan
-                            </p>
-                            <h2 className="mt-1 font-anton text-3xl uppercase tracking-[0.02em] text-zinc-950 sm:text-4xl">
-                                Pertanyaan <span className="stroke-word">Umum</span>
-                            </h2>
-                            <p className="mt-2 text-xs text-zinc-500">Hal penting seputar proses pemesanan tiket di jaringan Vurasi.</p>
-                        </div>
+                    <section className="bg-[#f5efda] py-16 text-zinc-950 sm:py-24">
+                        <div className="mx-auto max-w-4xl px-3 sm:px-5 lg:px-6">
+                            <motion.div
+                                initial={{ opacity: 0, y: 28 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.4 }}
+                                transition={{ duration: 0.55, ease: EASE }}
+                                className="mb-10"
+                            >
+                                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-orange-600">
+                                    &sect; Panduan &amp; Bantuan
+                                </p>
+                                <h2 className="mt-2 font-anton text-4xl uppercase tracking-[0.02em] sm:text-5xl">
+                                    Pertanyaan <span className="stroke-word">Umum</span>
+                                </h2>
+                                <p className="mt-3 max-w-lg text-sm leading-relaxed text-zinc-600">
+                                    Hal penting seputar proses pemesanan tiket di jaringan Vurasi.
+                                </p>
+                            </motion.div>
 
-                        <div>
-                            {[
-                                {
-                                    q: 'Bagaimana cara memesan tiket wahana atau pameran seni?',
-                                    a: 'Pilih salah satu destinasi di atas, lalu Anda akan diarahkan ke halaman detail tempat tersebut untuk memilih tanggal kunjungan, kategori tiket, dan menyelesaikan pembayaran secara aman.',
-                                },
-                                {
-                                    q: 'Apakah saya bisa mengubah tanggal kunjungan (reschedule)?',
-                                    a: 'Ya, reschedule dapat dilakukan secara gratis melalui menu "Cek Pesanan" di pojok atas, selama kuota tanggal tujuan baru masih tersedia.',
-                                },
-                                {
-                                    q: 'Bagaimana cara menggunakan E-Tiket di gerbang masuk?',
-                                    a: 'Cukup tunjukkan Barcode / QR Code E-Tiket dari layar smartphone kepada petugas turnstile. Anda tidak perlu mencetak tiket fisik.',
-                                },
-                                {
-                                    q: 'Apakah bisa memesan tiket tanpa memiliki akun?',
-                                    a: 'Bisa. Pengguna dapat memesan sebagai tamu (Guest). E-Tiket otomatis dikirimkan ke email Anda dan dapat dilihat kapan saja lewat tombol Cek Pesanan.',
-                                },
-                            ].map((faq, idx) => (
-                                <FaqItem key={idx} faq={faq} idx={idx} defaultOpen={idx === 0} />
-                            ))}
+                            <div>
+                                {[
+                                    {
+                                        q: 'Bagaimana cara memesan tiket wahana atau pameran seni?',
+                                        a: 'Pilih salah satu destinasi di atas, lalu Anda akan diarahkan ke halaman detail tempat tersebut untuk memilih tanggal kunjungan, kategori tiket, dan menyelesaikan pembayaran secara aman.',
+                                    },
+                                    {
+                                        q: 'Apakah saya bisa mengubah tanggal kunjungan (reschedule)?',
+                                        a: 'Ya, reschedule dapat dilakukan secara gratis melalui menu "Cek Pesanan" di pojok atas, selama kuota tanggal tujuan baru masih tersedia.',
+                                    },
+                                    {
+                                        q: 'Bagaimana cara menggunakan E-Tiket di gerbang masuk?',
+                                        a: 'Cukup tunjukkan Barcode / QR Code E-Tiket dari layar smartphone kepada petugas turnstile. Anda tidak perlu mencetak tiket fisik.',
+                                    },
+                                    {
+                                        q: 'Apakah bisa memesan tiket tanpa memiliki akun?',
+                                        a: 'Bisa. Pengguna dapat memesan sebagai tamu (Guest). E-Tiket otomatis dikirimkan ke email Anda dan dapat dilihat kapan saja lewat tombol Cek Pesanan.',
+                                    },
+                                ].map((faq, idx) => (
+                                    <FaqItem key={idx} faq={faq} idx={idx} defaultOpen={idx === 0} />
+                                ))}
+                            </div>
                         </div>
                     </section>
 
                     {/* =========================================================
                         FOOTER VURASI (Identik dengan Landing Page)
                     ========================================================= */}
-                    <footer className="mt-20 bg-zinc-950 text-zinc-400">
-                        <div className="mx-auto max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:px-8">
-                            <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
+                    <footer className="bg-zinc-950 text-zinc-400">
+                        <div className="mx-auto max-w-[1440px] px-3 pb-10 pt-14 sm:px-5 lg:px-6">
+                            <img
+                                src="/images/vurasi-logo.png"
+                                alt=""
+                                aria-hidden="true"
+                                width="1180"
+                                height="490"
+                                className="h-14 w-auto select-none opacity-20 sm:h-20"
+                            />
+
+                            <div className="mt-8 grid grid-cols-1 gap-10 md:grid-cols-4">
                                 <div className="space-y-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-white">Tentang Kami</h4>
                                     <div className="flex items-center gap-2">
                                         <img
                                             src="/images/vurasi-logo.png"
@@ -815,7 +838,7 @@ export default function TicketCatalogIndex({
                             type="button"
                             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                             aria-label="Kembali ke atas"
-                            className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-zinc-900 bg-zinc-900 text-white shadow-xl hover:bg-orange-600 transition cursor-pointer"
+                            className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border-2 border-zinc-900 bg-zinc-900 text-white shadow-[3px_3px_0_#EA580C] hover:bg-orange-600 transition cursor-pointer"
                         >
                             <ArrowUp className="h-5 w-5" />
                         </button>

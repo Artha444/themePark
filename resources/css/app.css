@@ -1,6 +1,11 @@
+@import url("./tokens.css");
+@import url("./hero-search-ticket.css");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html, body { overflow-x: clip; }
 
 /* ================= PLUMY — bakery & coffee bar ================= */
 /* Custom styles are scoped under `.plumy` so they don't affect the rest of the app. */
@@ -142,4 +147,47 @@ html {
 
 @media (prefers-reduced-motion: reduce) {
     .vurasi [class*="animate-[ticker-scroll"] { animation: none; }
+}
+
+/* Blob bergelombang di belakang maskot hero — tepian organik yang terus berubah */
+@keyframes vurasi-blob {
+    0%, 100% {
+        border-radius: 42% 58% 63% 37% / 45% 42% 58% 55%;
+        transform: translate(-50%, -46%) rotate(0deg);
+    }
+    33% {
+        border-radius: 58% 42% 37% 63% / 55% 63% 37% 45%;
+        transform: translate(-50%, -46%) rotate(4deg);
+    }
+    66% {
+        border-radius: 37% 63% 55% 45% / 63% 37% 45% 57%;
+        transform: translate(-50%, -46%) rotate(-4deg);
+    }
+}
+
+@keyframes vurasi-blob-slow {
+    0%, 100% {
+        border-radius: 55% 45% 42% 58% / 42% 58% 45% 55%;
+        transform: translate(-50%, -46%) rotate(0deg) scale(1.06);
+    }
+    50% {
+        border-radius: 38% 62% 58% 42% / 60% 40% 55% 45%;
+        transform: translate(-50%, -46%) rotate(6deg) scale(1.06);
+    }
+}
+
+.vurasi .mascot-blob {
+    animation: vurasi-blob 12s ease-in-out infinite;
+}
+
+.vurasi .mascot-blob-slow {
+    animation: vurasi-blob-slow 17s ease-in-out infinite reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vurasi .mascot-blob,
+    .vurasi .mascot-blob-slow {
+        animation: none;
+        border-radius: 42% 58% 63% 37% / 45% 42% 58% 55%;
+    }
 }
